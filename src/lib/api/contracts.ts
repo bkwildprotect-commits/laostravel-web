@@ -5,5 +5,5 @@ export type MoneyAmount=string; // integer minor-unit value; avoids JavaScript n
 export type ServiceSummary={id:string;category:string;name:string;locationLabel:string;bookingMode:"INFORMATION_ONLY"|"DATE_BASED"|"TIME_SLOT"|"CAPACITY"|"UNIT_BASED"};
 export type AvailabilityQuoteRequest={serviceId:string;date:string;quantity:number;optionId?:string};
 export type AvailabilityQuote={serviceId:string;date:string;quantity:number;optionId?:string;availabilityToken:string;priceQuoteId:string;currency:string;baseAmount:MoneyAmount;feesAmount:MoneyAmount;couponAmount:MoneyAmount;pointsBenefitAmount:MoneyAmount;customerTotal:MoneyAmount;expiresAt:string};
-export type CreateBookingRequest={serviceId:string;availabilityToken:string;priceQuoteId:string;quantity:number;traveller:{name:string;email:string};couponCode?:string;pointsToRedeem?:number;idempotencyKey:string};
+export type CreateBookingRequest={serviceId:string;date:string;optionId?:string;availabilityToken:string;priceQuoteId:string;quantity:number;traveller:{name:string;email:string};couponCode?:string;pointsToRedeem?:number;idempotencyKey:string};
 export type BookingResponse={id:string;bookingRef:string;status:"PENDING"|"CONFIRMED"|"COMPLETED"|"CANCELLED"|"EXPIRED"|"NO_SHOW";paymentStatus:"PENDING"|"AUTHORIZED"|"PAID"|"FAILED"|"CANCELLED";currency:string;customerTotal:MoneyAmount};
