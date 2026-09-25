@@ -1,0 +1,2 @@
+import {describe,it,expect} from "vitest";import {assertReservableInventory,remainingAfterReservation} from "../inventory-allocation";
+describe("inventory allocation",()=>{it("reserves only when enough remains",()=>expect(remainingAfterReservation({remaining:2},2)).toBe(0));it("rejects overbooking",()=>expect(()=>assertReservableInventory({remaining:1},2)).toThrow("INSUFFICIENT_INVENTORY"));it("supports unlimited inventory explicitly",()=>expect(remainingAfterReservation({remaining:null},50)).toBeNull());});
