@@ -1,1 +1,1 @@
-export default function BookingPage(){return <main className="container section"><h1>Booking</h1><p>Selection, availability, pricing and booking confirmation will be handled here.</p></main>}
+import { BookingFlow } from "@/components/BookingFlow";export default function BookingPage(){return <main className="container bookingPage"><p className="eyebrow">SECURE BOOKING</p><h1>Booking</h1><p className="bookingIntro">This preview does not create a reservation until the shared backend validates it.</p><BookingFlow/></main>}
