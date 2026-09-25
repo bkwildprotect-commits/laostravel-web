@@ -1,0 +1,1 @@
+export default function ContactPage(){return <main className="container accountPage"><p className="eyebrow">CONTACT</p><h1>Contact LaosTravel</h1><div className="emptyState"><strong>Official support channels are being verified</strong><p>Only verified LaosTravel contact details will be published here.</p></div></main>}
