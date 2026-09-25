@@ -1,12 +1,12 @@
 import {readInventoryHoldPolicy} from "./inventory-hold-policy";
 import {assertReservableInventory} from "./inventory-allocation";
 import {assertInventoryReservation} from "./postgres-repository-contract";
-import type {TransactionAdapter} from "@/lib/infrastructure/transaction";
+import type {TransactionAdapter} from "../infrastructure/transaction";
 import type {BookingTransactionRepository} from "./repository";
 import {BookingTransactionError} from "./transaction-errors";
-import {PostgresQuoteStore} from "@/lib/pricing/postgres-quote-store";
-import {verifyBookingQuote} from "@/lib/pricing/quote-verification";
-import type {CreateBookingRequest} from "@/lib/api/contracts";
+import {PostgresQuoteStore} from "../pricing/postgres-quote-store";
+import {verifyBookingQuote} from "../pricing/quote-verification";
+import type {CreateBookingRequest} from "../api/contracts";
 export type AtomicBookingInput={userId:string;idempotencyKey:string;requestHash:string;bookingRequest:CreateBookingRequest};
 export type AtomicBookingResult={bookingId:string;bookingRef:string;replayed:boolean};
 export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:BookingTransactionRepository,input:AtomicBookingInput):Promise<AtomicBookingResult>{
