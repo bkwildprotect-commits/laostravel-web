@@ -1,0 +1,1 @@
+export default function ExplorePage(){return <main className="container section"><h1>Explore</h1><p>LaosTravel discovery and map experience is being built here.</p></main>}
