@@ -1,0 +1,2 @@
+import Link from "next/link";import type { Locale } from "@/i18n/locales";
+export function AuthShell({locale,title,subtitle,children}:{locale:Locale;title:string;subtitle:string;children:React.ReactNode}){return <main className="authPage"><section className="authCard"><Link className="authBack" href={"/"+locale}>← LaosTravel</Link><h1>{title}</h1><p className="authSubtitle">{subtitle}</p>{children}</section></main>}
