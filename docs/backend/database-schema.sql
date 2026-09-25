@@ -56,3 +56,28 @@ CREATE TABLE partner_commission_ledger (
 );
 CREATE INDEX idx_partner_trial_partner ON partner_trial_ledger(partner_id,status);
 CREATE INDEX idx_partner_commission_partner ON partner_commission_ledger(partner_id,status,created_at DESC);
+
+
+CREATE TABLE inventory_holds (
+  id uuid PRIMARY KEY,
+  service_id uuid NOT NULL REFERENCES services(id),
+  availability_id uuid NOT NULL REFERENCES availability(id),
+  booking_id uuid UNIQUE REFERENCES bookings(id),
+  quantity integer NOT NULL CHECK(quantity > 0),
+  status text NOT NULL CHECK(status IN ('ACTIVE','CONSUMED','RELEASED','EXPIRED')),
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_inventory_holds_availability_active ON inventory_holds(availability_id,expires_at) WHERE status='ACTIVE';
+
+CREATE TABLE idempotency_records (
+  scope text NOT NULL,
+  idempotency_key text NOT NULL,
+  request_hash text NOT NULL,
+  response_code integer NOT NULL,
+  response_body jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  PRIMARY KEY(scope,idempotency_key)
+);
+CREATE INDEX idx_idempotency_expiry ON idempotency_records(expires_at);
