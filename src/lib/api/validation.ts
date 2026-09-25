@@ -14,5 +14,10 @@ export function validateCreateBooking(input:unknown):{ok:true;value:CreateBookin
  if(x.couponCode!==undefined&&(typeof x.couponCode!=="string"||!x.couponCode.trim()||x.couponCode.trim().length>64))e.push("couponCode must be 1-64 characters when provided");
  if(x.pointsToRedeem!==undefined&&(!Number.isSafeInteger(x.pointsToRedeem)||Number(x.pointsToRedeem)<0))e.push("pointsToRedeem must be a non-negative safe integer");
  if(!x.idempotencyKey||typeof x.idempotencyKey!=="string"||x.idempotencyKey.length<8||x.idempotencyKey.length>128)e.push("idempotencyKey must be 8-128 characters");
- return e.length?{ok:false,errors:e}:{ok:true,value:x as CreateBookingRequest};
+ if(e.length)return {ok:false,errors:e};
+ const value:CreateBookingRequest={serviceId:x.serviceId!,date:x.date!,availabilityToken:x.availabilityToken!,priceQuoteId:x.priceQuoteId!,quantity:x.quantity!,traveller:{name:x.traveller!.name,email:x.traveller!.email},idempotencyKey:x.idempotencyKey!};
+ if(x.optionId!==undefined)value.optionId=x.optionId;
+ if(x.couponCode!==undefined)value.couponCode=x.couponCode;
+ if(x.pointsToRedeem!==undefined)value.pointsToRedeem=x.pointsToRedeem;
+ return {ok:true,value};
 }
