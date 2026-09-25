@@ -1,0 +1,2 @@
+import { AuthShell } from "@/components/AuthShell";import { AuthForm } from "@/components/AuthForm";import type { Locale } from "@/i18n/locales";
+export default async function Forgot({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AuthShell locale={locale as Locale} title="Account recovery" subtitle="Enter your verified email to start account recovery."><AuthForm mode="forgot"/></AuthShell>}
