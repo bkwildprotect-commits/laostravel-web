@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 jobs:
-  build:
+  test-and-build:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -16,4 +16,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - run: npm run build
+      - name: Run domain tests
+        run: npm test
+      - name: Build production website
+        run: npm run build
