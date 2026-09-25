@@ -1,0 +1,2 @@
+const services=["Hotels","Restaurants","Attractions","Tours & Activities","Transport","Map","Car Rental","Guides"];
+export default function Home(){return <main><section className="container" style={{padding:"48px 0"}}><p style={{color:"#F06222",fontWeight:700}}>LAOS TRAVEL</p><h1>Explore Laos</h1><p>Stunning nature. Rich culture. Unforgettable journeys.</p><div aria-label="LaosTravel services">{services.map((service)=><p key={service}>{service}</p>)}</div><p><strong>Emergency Assistance</strong></p></section></main>}
