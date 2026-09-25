@@ -1,0 +1,1 @@
+export default function EmergencyPage(){return <main className="container section"><p className="eyebrow">VANG VIENG</p><h1>Emergency Assistance</h1><p>This page will show verified contact numbers only. LaosTravel does not automatically send your live GPS location in the pilot.</p></main>}
