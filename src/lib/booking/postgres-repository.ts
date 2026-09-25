@@ -5,7 +5,14 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
  async lockAvailability(tx:TransactionContext,id:string){const r=await tx.query<{remaining:number|null}>("SELECT remaining FROM availability WHERE id=$1 FOR UPDATE",[id]);if(!r[0])throw new Error("AVAILABILITY_NOT_FOUND");return r[0]}
  async reserveInventory(tx:TransactionContext,id:string,quantity:number){const current=await tx.query<{remaining:number|null;version:number}>("SELECT remaining,version FROM availability WHERE id=$1",[id]);if(!current[0])return null as never;if(current[0].remaining===null)return {remaining:null,version:current[0].version};const r=await tx.query<{remaining:number;version:number}>("UPDATE availability SET remaining=remaining-$2,version=version+1 WHERE id=$1 AND remaining >= $2 RETURNING remaining,version",[id,quantity]);return r[0]??null as never}
  async lockPartnerTrial(tx:TransactionContext,partnerId:string){await tx.query("SELECT id FROM partners WHERE id=$1 FOR UPDATE",[partnerId])}
- async allocateCommercialPath(_tx:TransactionContext,_input:{partnerId:string}):Promise<CommercialAllocation>{throw new Error("COMMERCIAL_ALLOCATION_POLICY_NOT_WIRED")}
+ async allocateCommercialPath(tx:TransactionContext,input:{partnerId:string}):Promise<CommercialAllocation>{
+  // Partner row is already locked by the orchestrator, serializing trial allocation per Partner.
+  const occupied=await tx.query<{trial_ordinal:number}>("SELECT trial_ordinal FROM partner_trial_ledger WHERE partner_id=$1 AND status IN ('RESERVED','CONSUMED') AND trial_ordinal IS NOT NULL ORDER BY trial_ordinal",[input.partnerId]);
+  const used=new Set(occupied.map(x=>x.trial_ordinal));let ordinal:number|undefined;for(let i=1;i<=5;i++){if(!used.has(i)){ordinal=i;break}}
+  if(ordinal!==undefined)return {path:"TRIAL_FREE",ordinal};
+  // Exact commission rate is intentionally not selected here; persistence requires an approved versioned rule.
+  return {path:"COMMISSIONABLE",ruleVersion:"UNRESOLVED"};
+ }
  async createBooking(_tx:TransactionContext,_input:Parameters<BookingTransactionRepository["createBooking"]>[1]){throw new Error("BOOKING_PERSISTENCE_NOT_WIRED")}
  async attachInventoryToBooking(_tx:TransactionContext,_input:Parameters<BookingTransactionRepository["attachInventoryToBooking"]>[1]){throw new Error("INVENTORY_HOLD_PERSISTENCE_NOT_WIRED")}
  async completeIdempotency(tx:TransactionContext,input:{userId:string;key:string;bookingId:string}){await tx.execute("UPDATE booking_idempotency SET booking_id=$3,status='COMPLETED' WHERE user_id=$1 AND idempotency_key=$2 AND status='PROCESSING'",[input.userId,input.key,input.bookingId])}
