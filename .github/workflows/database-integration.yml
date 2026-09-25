@@ -1,0 +1,31 @@
+name: Database integration
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laostravel
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: laostravel_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U laostravel -d laostravel_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://laostravel:test@localhost:5432/laostravel_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap fresh database
+        run: node scripts/run-db-bootstrap.mjs
+      - name: Run SQL integration checks
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/001_commercial_path.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/002_trial_ordinals.sql
+      - name: Run concurrency invariants
+        run: node scripts/run-db-concurrency.mjs
