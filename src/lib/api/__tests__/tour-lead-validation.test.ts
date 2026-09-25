@@ -1,0 +1,3 @@
+import {describe,it,expect} from "vitest";import {validateTourLead} from "../tour-lead-validation";
+const good={name:"Somchai",phone:"+856 20 5555 5555",email:"guest@example.com",date:"2026-10-20",guests:2,consent:true};
+describe("tour lead validation",()=>{it("accepts valid enquiry",()=>expect(validateTourLead(good).ok).toBe(true));it("requires consent",()=>expect(validateTourLead({...good,consent:false})).toEqual({ok:false,code:"CONSENT_REQUIRED"}));it("rejects malformed email",()=>expect(validateTourLead({...good,email:"bad"}).ok).toBe(false));it("rejects unsafe guest count",()=>expect(validateTourLead({...good,guests:0}).ok).toBe(false));it("rejects malformed phone",()=>expect(validateTourLead({...good,phone:"abc"}).ok).toBe(false));});
