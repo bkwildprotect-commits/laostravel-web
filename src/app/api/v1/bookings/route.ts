@@ -1,5 +1,5 @@
-import {NextResponse} from "next/server";import {validateCreateBooking} from "@/lib/api/validation";import {getBookingApiReadiness} from "@/lib/booking/api-readiness";import {AuthenticationError,UnconfiguredAuthenticationAdapter} from "@/lib/auth/authentication";
-const auth=new UnconfiguredAuthenticationAdapter();
+import {NextResponse} from "next/server";import {validateCreateBooking} from "@/lib/api/validation";import {getBookingApiReadiness} from "@/lib/booking/api-readiness";import {AuthenticationError} from "@/lib/auth/authentication";import {getRuntimeAuthenticationAdapter} from "@/lib/auth/runtime";
+const auth=getRuntimeAuthenticationAdapter();
 export async function POST(request:Request){
  let body:unknown;try{body=await request.json()}catch{return NextResponse.json({data:null,error:{code:"INVALID_JSON",message:"Request body must be valid JSON"}},{status:400})}
  const checked=validateCreateBooking(body);if(!checked.ok)return NextResponse.json({data:null,error:{code:"VALIDATION_ERROR",message:"Invalid booking request",details:checked.errors}},{status:400});
