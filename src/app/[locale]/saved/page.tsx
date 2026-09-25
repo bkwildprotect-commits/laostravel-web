@@ -1,1 +1,1 @@
-export default function SavedPage(){return <main className="container section"><h1>Saved</h1><p>Save places and services to plan your Laos journey.</p></main>}
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Page({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Saved" description="Places and services you save for later will appear here."/>}
