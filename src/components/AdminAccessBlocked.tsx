@@ -1,0 +1,1 @@
+export function AdminAccessBlocked(){return <main className="container adminPage"><p className="eyebrow">ADMIN</p><h1>Admin access unavailable</h1><div className="emptyState"><strong>Protected area</strong><p>Administrator authentication is not connected yet. This route fails closed and does not expose administration tools or operational data.</p></div></main>}
