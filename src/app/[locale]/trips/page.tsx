@@ -1,1 +1,1 @@
-export default function TripsPage(){return <main className="container section"><h1>Trips</h1><p>Your LaosTravel bookings and journeys will appear here after sign in.</p></main>}
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Page({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Trips" description="Your current and past LaosTravel bookings will appear here."/>}
