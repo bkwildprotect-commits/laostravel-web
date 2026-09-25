@@ -3,6 +3,7 @@ export type BookingPriceSnapshot={currency:string;baseAmount:string;feesAmount:s
 export type CommercialAllocation={path:"TRIAL_FREE";ordinal:number}|{path:"COMMISSIONABLE";ruleVersion:string};
 export interface BookingTransactionRepository{
  claimIdempotency(tx:TransactionContext,userId:string,key:string,requestHash:string):Promise<"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS">;
+ resolveBookingOwnership(tx:TransactionContext,input:{serviceId:string;availabilityId:string}):Promise<{partnerId:string}>;
  getCompletedIdempotentBooking(tx:TransactionContext,userId:string,key:string):Promise<{bookingId:string;bookingRef:string}|null>;
  lockAvailability(tx:TransactionContext,availabilityId:string):Promise<{remaining:number|null}>;
  reserveInventory(tx:TransactionContext,availabilityId:string,quantity:number):Promise<{remaining:number|null;version:number}>;
