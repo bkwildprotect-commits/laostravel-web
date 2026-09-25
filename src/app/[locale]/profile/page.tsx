@@ -1,1 +1,1 @@
-export default function ProfilePage(){return <main className="container section"><h1>Profile</h1><p>Account, rewards, language, settings and support will be managed here.</p></main>}
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Page({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Profile" description="Manage your LaosTravel account and traveller information."/>}
