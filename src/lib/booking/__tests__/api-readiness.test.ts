@@ -1,0 +1,3 @@
+import {describe,it,expect} from "vitest";import {getBookingApiReadiness} from "../api-readiness";
+const base={DATABASE_URL:"postgres://test",BOOKING_HOLD_MINUTES:"20",AUTH_ISSUER_URL:"https://issuer.invalid",AUTH_AUDIENCE:"laostravel"};
+describe("booking API readiness",()=>{it("fails closed without approval",()=>expect(getBookingApiReadiness(base)).toEqual({ready:false,missing:["BOOKING_API_APPROVED"]}));it("reports missing infrastructure",()=>expect(getBookingApiReadiness({})).toMatchObject({ready:false}));it("opens only with all prerequisites and explicit approval",()=>expect(getBookingApiReadiness({...base,BOOKING_API_APPROVED:"true"})).toEqual({ready:true}))});
