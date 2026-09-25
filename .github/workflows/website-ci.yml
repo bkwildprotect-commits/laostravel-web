@@ -15,7 +15,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::package-lock.json is missing; reproducible npm installs are not yet enforced"
+            npm install --no-audit --no-fund
+          fi
       - name: Run domain tests
         run: npm test
       - name: TypeScript check
