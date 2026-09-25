@@ -1,0 +1,22 @@
+-- LaosTravel shared PostgreSQL schema foundation (provider-neutral)
+CREATE TABLE users (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, status text NOT NULL DEFAULT 'ACTIVE', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE user_profiles (user_id uuid PRIMARY KEY REFERENCES users(id), display_name text, locale varchar(5) NOT NULL DEFAULT 'en');
+CREATE TABLE partners (id uuid PRIMARY KEY, name text NOT NULL, verification_status text NOT NULL DEFAULT 'DRAFT', business_status text NOT NULL DEFAULT 'DRAFT', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE partner_members (partner_id uuid REFERENCES partners(id), user_id uuid REFERENCES users(id), role text NOT NULL, PRIMARY KEY(partner_id,user_id));
+CREATE TABLE services (id uuid PRIMARY KEY, partner_id uuid NOT NULL REFERENCES partners(id), category text NOT NULL, status text NOT NULL DEFAULT 'DRAFT', booking_mode text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE service_translations (service_id uuid REFERENCES services(id), locale varchar(5) NOT NULL, name text NOT NULL, description text, PRIMARY KEY(service_id,locale));
+CREATE TABLE availability (id uuid PRIMARY KEY, service_id uuid NOT NULL REFERENCES services(id), starts_at timestamptz, ends_at timestamptz, capacity integer, remaining integer, version bigint NOT NULL DEFAULT 1, CHECK (remaining IS NULL OR remaining >= 0));
+CREATE TABLE bookings (id uuid PRIMARY KEY, booking_ref text UNIQUE NOT NULL, user_id uuid NOT NULL REFERENCES users(id), status text NOT NULL, payment_status text NOT NULL DEFAULT 'PENDING', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE booking_items (id uuid PRIMARY KEY, booking_id uuid NOT NULL REFERENCES bookings(id), service_id uuid NOT NULL REFERENCES services(id), availability_id uuid REFERENCES availability(id), quantity integer NOT NULL CHECK(quantity>0));
+CREATE TABLE price_snapshots (booking_id uuid PRIMARY KEY REFERENCES bookings(id), currency char(3) NOT NULL, base_amount bigint NOT NULL, fees_amount bigint NOT NULL DEFAULT 0, coupon_amount bigint NOT NULL DEFAULT 0, points_benefit_amount bigint NOT NULL DEFAULT 0, customer_total bigint NOT NULL, commission_rule_version text, commission_amount bigint, partner_amount bigint, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE payments (id uuid PRIMARY KEY, booking_id uuid NOT NULL REFERENCES bookings(id), requirement text NOT NULL, status text NOT NULL, provider_ref text, amount bigint NOT NULL, currency char(3) NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE reviews (id uuid PRIMARY KEY, booking_id uuid UNIQUE NOT NULL REFERENCES bookings(id), user_id uuid NOT NULL REFERENCES users(id), service_id uuid NOT NULL REFERENCES services(id), rating smallint NOT NULL CHECK(rating BETWEEN 1 AND 5), body text, status text NOT NULL DEFAULT 'PUBLISHED', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE coupons (id uuid PRIMARY KEY, code text UNIQUE NOT NULL, status text NOT NULL, rule_version text NOT NULL);
+CREATE TABLE coupon_usages (coupon_id uuid REFERENCES coupons(id), booking_id uuid UNIQUE REFERENCES bookings(id), user_id uuid REFERENCES users(id), benefit_amount bigint NOT NULL, PRIMARY KEY(coupon_id,booking_id));
+CREATE TABLE points_ledger (id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id), booking_id uuid REFERENCES bookings(id), type text NOT NULL, points bigint NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE emergency_contacts (id uuid PRIMARY KEY, area text NOT NULL, type text NOT NULL, name text NOT NULL, phone text NOT NULL, priority integer NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true, verified_at timestamptz);
+CREATE TABLE audit_logs (id uuid PRIMARY KEY, actor_user_id uuid REFERENCES users(id), action text NOT NULL, target_type text NOT NULL, target_id text NOT NULL, metadata jsonb, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX idx_services_partner ON services(partner_id);
+CREATE INDEX idx_availability_service ON availability(service_id,starts_at);
+CREATE INDEX idx_bookings_user ON bookings(user_id,created_at DESC);
+CREATE INDEX idx_points_user ON points_ledger(user_id,created_at DESC);
