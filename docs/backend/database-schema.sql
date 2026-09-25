@@ -20,3 +20,39 @@ CREATE INDEX idx_services_partner ON services(partner_id);
 CREATE INDEX idx_availability_service ON availability(service_id,starts_at);
 CREATE INDEX idx_bookings_user ON bookings(user_id,created_at DESC);
 CREATE INDEX idx_points_user ON points_ledger(user_id,created_at DESC);
+
+
+-- Partner trial + commission ledger foundation.
+-- Trial entitlement is ledger-based and must be allocated/finalized transactionally.
+CREATE TABLE partner_trial_ledger (
+  id uuid PRIMARY KEY,
+  partner_id uuid NOT NULL REFERENCES partners(id),
+  booking_id uuid NOT NULL UNIQUE REFERENCES bookings(id),
+  trial_ordinal smallint,
+  status text NOT NULL CHECK (status IN ('RESERVED','CONSUMED','RELEASED')),
+  reserved_at timestamptz NOT NULL DEFAULT now(),
+  consumed_at timestamptz,
+  released_at timestamptz,
+  CHECK (trial_ordinal IS NULL OR trial_ordinal BETWEEN 1 AND 5)
+);
+CREATE UNIQUE INDEX uq_partner_trial_consumed_ordinal
+  ON partner_trial_ledger(partner_id,trial_ordinal)
+  WHERE status IN ('RESERVED','CONSUMED') AND trial_ordinal IS NOT NULL;
+
+CREATE TABLE partner_commission_ledger (
+  id uuid PRIMARY KEY,
+  partner_id uuid NOT NULL REFERENCES partners(id),
+  booking_id uuid NOT NULL UNIQUE REFERENCES bookings(id),
+  status text NOT NULL CHECK (status IN ('PENDING','EARNED','VOID','SETTLED','REVERSED')),
+  currency char(3) NOT NULL,
+  commission_basis_amount bigint NOT NULL CHECK (commission_basis_amount >= 0),
+  commission_rate_bps integer NOT NULL CHECK (commission_rate_bps >= 0),
+  commission_amount bigint NOT NULL CHECK (commission_amount >= 0),
+  partner_amount bigint NOT NULL CHECK (partner_amount >= 0),
+  commission_rule_version text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  earned_at timestamptz,
+  settled_at timestamptz
+);
+CREATE INDEX idx_partner_trial_partner ON partner_trial_ledger(partner_id,status);
+CREATE INDEX idx_partner_commission_partner ON partner_commission_ledger(partner_id,status,created_at DESC);
