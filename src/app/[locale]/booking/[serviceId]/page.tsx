@@ -1,0 +1,2 @@
+import { BookingFlow } from "@/components/BookingFlow";
+export default async function Booking({params}:{params:Promise<{locale:string;serviceId:string}>}){const {serviceId}=await params;return <main className="container bookingPage"><p className="eyebrow">SECURE BOOKING</p><h1>Book your Laos experience</h1><p className="bookingIntro">Review each step before a booking is created.</p><BookingFlow serviceId={serviceId}/></main>}
