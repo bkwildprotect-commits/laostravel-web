@@ -81,3 +81,17 @@ CREATE TABLE idempotency_records (
   PRIMARY KEY(scope,idempotency_key)
 );
 CREATE INDEX idx_idempotency_expiry ON idempotency_records(expires_at);
+
+
+CREATE TABLE inventory_holds (
+ id uuid PRIMARY KEY, service_id uuid NOT NULL REFERENCES services(id), availability_id uuid NOT NULL REFERENCES availability(id),
+ booking_id uuid REFERENCES bookings(id), quantity integer NOT NULL CHECK(quantity>0),
+ status text NOT NULL CHECK(status IN ('ACTIVE','CONSUMED','RELEASED','EXPIRED')),
+ expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_inventory_holds_availability ON inventory_holds(availability_id,status,expires_at);
+CREATE TABLE booking_idempotency (
+ id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id), idempotency_key text NOT NULL, request_hash text NOT NULL,
+ booking_id uuid REFERENCES bookings(id), status text NOT NULL CHECK(status IN ('PROCESSING','COMPLETED','FAILED')),
+ expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id,idempotency_key)
+);
