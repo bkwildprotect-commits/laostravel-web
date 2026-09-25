@@ -1,0 +1,1 @@
+export default function SavedPage(){return <main className="container section"><h1>Saved</h1><p>Save places and services to plan your Laos journey.</p></main>}
