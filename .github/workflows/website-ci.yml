@@ -18,5 +18,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Run domain tests
         run: npm test
+      - name: TypeScript check
+        run: npx tsc --noEmit
       - name: Build production website
         run: npm run build
