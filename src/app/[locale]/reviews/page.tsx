@@ -1,0 +1,1 @@
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Reviews({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Reviews" description="Reviews from eligible completed bookings will be managed here."/>}
