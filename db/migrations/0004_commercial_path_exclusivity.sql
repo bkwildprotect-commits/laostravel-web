@@ -1,4 +1,5 @@
--- LaosTravel migration 0004: enforce one commercial path per booking.
+-- LaosTravel migration 0004: declaratively enforce one commercial path per booking.
+-- Not yet applied to production; replaces the earlier trigger-based draft before first deployment.
 BEGIN;
 DO $$
 BEGIN
@@ -7,29 +8,27 @@ BEGIN
  END IF;
 END $$;
 
-CREATE OR REPLACE FUNCTION enforce_booking_commercial_path_exclusivity() RETURNS trigger AS $$
-BEGIN
- PERFORM pg_advisory_xact_lock(hashtextextended(NEW.booking_id::text, 0));
- IF TG_TABLE_NAME='partner_trial_ledger' THEN
-  IF EXISTS (SELECT 1 FROM partner_commission_ledger WHERE booking_id=NEW.booking_id) THEN
-   RAISE EXCEPTION 'booking already has commission commercial path';
-  END IF;
- ELSE
-  IF EXISTS (SELECT 1 FROM partner_trial_ledger WHERE booking_id=NEW.booking_id) THEN
-   RAISE EXCEPTION 'booking already has trial commercial path';
-  END IF;
- END IF;
- RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE IF NOT EXISTS partner_booking_commercial_paths (
+ booking_id uuid PRIMARY KEY REFERENCES bookings(id),
+ partner_id uuid NOT NULL REFERENCES partners(id),
+ path text NOT NULL CHECK(path IN ('TRIAL_FREE','COMMISSIONABLE')),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(booking_id,partner_id,path)
+);
 
-DROP TRIGGER IF EXISTS trg_trial_commercial_path_exclusive ON partner_trial_ledger;
-CREATE TRIGGER trg_trial_commercial_path_exclusive BEFORE INSERT OR UPDATE OF booking_id ON partner_trial_ledger
-FOR EACH ROW EXECUTE FUNCTION enforce_booking_commercial_path_exclusivity();
+ALTER TABLE partner_trial_ledger
+ ADD COLUMN commercial_path text NOT NULL DEFAULT 'TRIAL_FREE'
+ CHECK(commercial_path='TRIAL_FREE');
+ALTER TABLE partner_commission_ledger
+ ADD COLUMN commercial_path text NOT NULL DEFAULT 'COMMISSIONABLE'
+ CHECK(commercial_path='COMMISSIONABLE');
 
-DROP TRIGGER IF EXISTS trg_commission_commercial_path_exclusive ON partner_commission_ledger;
-CREATE TRIGGER trg_commission_commercial_path_exclusive BEFORE INSERT OR UPDATE OF booking_id ON partner_commission_ledger
-FOR EACH ROW EXECUTE FUNCTION enforce_booking_commercial_path_exclusivity();
+ALTER TABLE partner_trial_ledger ADD CONSTRAINT fk_trial_commercial_path
+ FOREIGN KEY(booking_id,partner_id,commercial_path)
+ REFERENCES partner_booking_commercial_paths(booking_id,partner_id,path);
+ALTER TABLE partner_commission_ledger ADD CONSTRAINT fk_commission_commercial_path
+ FOREIGN KEY(booking_id,partner_id,commercial_path)
+ REFERENCES partner_booking_commercial_paths(booking_id,partner_id,path);
 
 INSERT INTO schema_migrations(version) VALUES ('0004_commercial_path_exclusivity') ON CONFLICT(version) DO NOTHING;
 COMMIT;
