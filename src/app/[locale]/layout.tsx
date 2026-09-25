@@ -1,0 +1,2 @@
+import { notFound } from "next/navigation";import { locales,type Locale } from "@/i18n/locales";import { SiteHeader } from "@/components/SiteHeader";import { SiteFooter } from "@/components/SiteFooter";
+export default async function LocaleLayout({children,params}:{children:React.ReactNode;params:Promise<{locale:string}>}){const {locale}=await params;if(!locales.includes(locale as Locale))notFound();return <><SiteHeader locale={locale as Locale}/>{children}<SiteFooter locale={locale as Locale}/></>}
