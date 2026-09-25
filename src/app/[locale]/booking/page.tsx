@@ -1,0 +1,1 @@
+export default function BookingPage(){return <main className="container section"><h1>Booking</h1><p>Selection, availability, pricing and booking confirmation will be handled here.</p></main>}
