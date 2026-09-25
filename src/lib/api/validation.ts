@@ -9,6 +9,8 @@ export function validateCreateBooking(input:unknown):{ok:true;value:CreateBookin
  if(!Number.isInteger(x.quantity)||Number(x.quantity)<1||Number(x.quantity)>100)e.push("quantity must be an integer from 1 to 100");
  if(!x.traveller?.name?.trim())e.push("traveller.name is required");
  if(!x.traveller?.email||!email.test(x.traveller.email))e.push("traveller.email is invalid");
+ if(x.couponCode!==undefined&&(typeof x.couponCode!=="string"||!x.couponCode.trim()||x.couponCode.trim().length>64))e.push("couponCode must be 1-64 characters when provided");
+ if(x.pointsToRedeem!==undefined&&(!Number.isSafeInteger(x.pointsToRedeem)||Number(x.pointsToRedeem)<0))e.push("pointsToRedeem must be a non-negative safe integer");
  if(!x.idempotencyKey||typeof x.idempotencyKey!=="string"||x.idempotencyKey.length<8||x.idempotencyKey.length>128)e.push("idempotencyKey must be 8-128 characters");
  return e.length?{ok:false,errors:e}:{ok:true,value:x as CreateBookingRequest};
 }
