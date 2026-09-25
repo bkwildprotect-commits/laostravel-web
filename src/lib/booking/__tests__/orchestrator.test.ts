@@ -1,6 +1,6 @@
 import {beforeAll,afterAll} from "vitest";
-import {describe,it,expect,vi} from "vitest";import {createBookingAtomically} from "../orchestrator";
-const tx={query:vi.fn(),execute:vi.fn()};const adapter={run:async(_iso:"SERIALIZABLE",work:(t:typeof tx)=>Promise<unknown>)=>work(tx)};
+import {describe,it,expect,vi} from "vitest";import type {TransactionAdapter} from "../../infrastructure/transaction";import {createBookingAtomically} from "../orchestrator";
+const tx={query:vi.fn(),execute:vi.fn()};const adapter:TransactionAdapter={run:async<T>(_iso:"SERIALIZABLE",work:(t:any)=>Promise<T>)=>work(tx as any)};
 function repo(idem:"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS"="CLAIMED",path:"TRIAL_FREE"|"COMMISSIONABLE"="TRIAL_FREE"){const commercial=path==="TRIAL_FREE"?{path:"TRIAL_FREE" as const,ordinal:1}:{path:"COMMISSIONABLE" as const,ruleVersion:"rule-v1"};return{
  claimIdempotency:vi.fn().mockResolvedValue(idem),resolveBookingOwnership:vi.fn().mockResolvedValue({partnerId:"p1"}),getCompletedIdempotentBooking:vi.fn().mockResolvedValue({bookingId:"b0",bookingRef:"LT-0"}),
  lockAvailability:vi.fn().mockResolvedValue({remaining:1}),reserveInventory:vi.fn().mockResolvedValue({remaining:0,version:2}),lockPartnerTrial:vi.fn(),
