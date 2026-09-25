@@ -1,0 +1,1 @@
+export default function TripsPage(){return <main className="container section"><h1>Trips</h1><p>Your LaosTravel bookings and journeys will appear here after sign in.</p></main>}
