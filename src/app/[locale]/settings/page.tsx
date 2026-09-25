@@ -1,0 +1,1 @@
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Settings({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Settings" description="Language, account security, privacy and support preferences will be managed here."/>}
