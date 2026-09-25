@@ -6,7 +6,7 @@ function repo(idem:"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS"="CLAIMED",path:"T
  allocateCommercialPath:vi.fn().mockResolvedValue(commercial),createBooking:vi.fn().mockResolvedValue({bookingId:"b1",bookingRef:"LT-1"}),
  persistCommercialPath:vi.fn(),attachInventoryToBooking:vi.fn(),completeIdempotency:vi.fn(),writeAudit:vi.fn()
 }}
-const input={userId:"u1",partnerId:"p1",serviceId:"s1",availabilityId:"a1",quantity:1,idempotencyKey:"idem-123456789012",requestHash:"hash"};
+const input={userId:"u1",partnerId:"p1",serviceId:"s1",availabilityId:"a1",quantity:1,idempotencyKey:"idem-123456789012",requestHash:"hash",price:{currency:"LAK",baseAmount:"100000",feesAmount:"0",couponAmount:"0",pointsBenefitAmount:"0",customerTotal:"100000",priceQuoteId:"q1"}};
 describe("atomic booking orchestrator",()=>{
  it("runs the full trial path atomically",async()=>{const r=repo();await expect(createBookingAtomically(adapter,r,input)).resolves.toEqual({bookingId:"b1",bookingRef:"LT-1",replayed:false});expect(r.allocateCommercialPath).toHaveBeenCalled();expect(r.createBooking).toHaveBeenCalledWith(tx,expect.objectContaining({commercial:{path:"TRIAL_FREE",ordinal:1}}));expect(r.persistCommercialPath).toHaveBeenCalled();expect(r.attachInventoryToBooking).toHaveBeenCalled();expect(r.completeIdempotency).toHaveBeenCalled()});
  it("supports the commissionable path after trial allocation policy selects it",async()=>{const r=repo("CLAIMED","COMMISSIONABLE");await createBookingAtomically(adapter,r,input);expect(r.createBooking).toHaveBeenCalledWith(tx,expect.objectContaining({commercial:{path:"COMMISSIONABLE",ruleVersion:"rule-v1"}}))});
