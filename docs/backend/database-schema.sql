@@ -23,12 +23,22 @@ CREATE INDEX idx_points_user ON points_ledger(user_id,created_at DESC);
 CREATE UNIQUE INDEX uq_points_booking_redeem ON points_ledger(user_id,booking_id) WHERE booking_id IS NOT NULL AND type='REDEEM';
 
 
+-- Exactly one commercial allocation path may exist for a booking.
+CREATE TABLE partner_booking_commercial_paths (
+  booking_id uuid PRIMARY KEY REFERENCES bookings(id),
+  partner_id uuid NOT NULL REFERENCES partners(id),
+  path text NOT NULL CHECK(path IN ('TRIAL_FREE','COMMISSIONABLE')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(booking_id,partner_id,path)
+);
+
 -- Partner trial + commission ledger foundation.
 -- Trial entitlement is ledger-based and must be allocated/finalized transactionally.
 CREATE TABLE partner_trial_ledger (
   id uuid PRIMARY KEY,
   partner_id uuid NOT NULL REFERENCES partners(id),
   booking_id uuid NOT NULL UNIQUE REFERENCES bookings(id),
+  commercial_path text NOT NULL DEFAULT 'TRIAL_FREE' CHECK(commercial_path='TRIAL_FREE'),
   trial_ordinal smallint,
   status text NOT NULL CHECK (status IN ('RESERVED','CONSUMED','RELEASED')),
   reserved_at timestamptz NOT NULL DEFAULT now(),
@@ -44,6 +54,7 @@ CREATE TABLE partner_commission_ledger (
   id uuid PRIMARY KEY,
   partner_id uuid NOT NULL REFERENCES partners(id),
   booking_id uuid NOT NULL UNIQUE REFERENCES bookings(id),
+  commercial_path text NOT NULL DEFAULT 'COMMISSIONABLE' CHECK(commercial_path='COMMISSIONABLE'),
   status text NOT NULL CHECK (status IN ('PENDING','EARNED','VOID','SETTLED','REVERSED')),
   currency char(3) NOT NULL,
   commission_basis_amount bigint NOT NULL CHECK (commission_basis_amount >= 0),
@@ -55,6 +66,8 @@ CREATE TABLE partner_commission_ledger (
   earned_at timestamptz,
   settled_at timestamptz
 );
+ALTER TABLE partner_trial_ledger ADD CONSTRAINT fk_trial_commercial_path FOREIGN KEY(booking_id,partner_id,commercial_path) REFERENCES partner_booking_commercial_paths(booking_id,partner_id,path);
+ALTER TABLE partner_commission_ledger ADD CONSTRAINT fk_commission_commercial_path FOREIGN KEY(booking_id,partner_id,commercial_path) REFERENCES partner_booking_commercial_paths(booking_id,partner_id,path);
 CREATE INDEX idx_partner_trial_partner ON partner_trial_ledger(partner_id,status);
 CREATE INDEX idx_partner_commission_partner ON partner_commission_ledger(partner_id,status,created_at DESC);
 
