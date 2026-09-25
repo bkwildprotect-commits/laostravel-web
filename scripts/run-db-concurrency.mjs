@@ -13,7 +13,7 @@ if(committed!==1){console.error("Expected exactly one concurrent ordinal-5 reser
 console.log("PASS: exactly one concurrent ordinal-5 trial reservation committed");
 
 const service=randomUUID(),availability=randomUUID();
-const inventorySeed="INSERT INTO services(id,partner_id,name) VALUES('"+service+"','"+partner+"','Concurrency Inventory Service'); INSERT INTO availability(id,service_id,remaining,version) VALUES('"+availability+"','"+service+"',1,1);";
+const inventorySeed="INSERT INTO services(id,partner_id,category,status,booking_mode) VALUES('"+service+"','"+partner+"','TOUR','ACTIVE','INVENTORY'); INSERT INTO availability(id,service_id,remaining,version) VALUES('"+availability+"','"+service+"',1,1);";
 const seededInventory=await psql([],inventorySeed);if(seededInventory.code!==0){console.error(seededInventory.err);process.exit(1)}
 const inventoryWorker=()=>psql(["-v","availability_id="+availability,"-v","quantity=1","-f","db/integration/concurrency/inventory-worker.sql"]);
 const inventoryResults=await Promise.all([inventoryWorker(),inventoryWorker()]);
