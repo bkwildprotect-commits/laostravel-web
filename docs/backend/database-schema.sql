@@ -12,14 +12,15 @@ CREATE TABLE price_snapshots (booking_id uuid PRIMARY KEY REFERENCES bookings(id
 CREATE TABLE payments (id uuid PRIMARY KEY, booking_id uuid NOT NULL REFERENCES bookings(id), requirement text NOT NULL, status text NOT NULL, provider_ref text, amount bigint NOT NULL, currency char(3) NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE reviews (id uuid PRIMARY KEY, booking_id uuid UNIQUE NOT NULL REFERENCES bookings(id), user_id uuid NOT NULL REFERENCES users(id), service_id uuid NOT NULL REFERENCES services(id), rating smallint NOT NULL CHECK(rating BETWEEN 1 AND 5), body text, status text NOT NULL DEFAULT 'PUBLISHED', created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE coupons (id uuid PRIMARY KEY, code text UNIQUE NOT NULL, status text NOT NULL, rule_version text NOT NULL);
-CREATE TABLE coupon_usages (coupon_id uuid REFERENCES coupons(id), booking_id uuid UNIQUE REFERENCES bookings(id), user_id uuid REFERENCES users(id), benefit_amount bigint NOT NULL, PRIMARY KEY(coupon_id,booking_id));
-CREATE TABLE points_ledger (id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id), booking_id uuid REFERENCES bookings(id), type text NOT NULL, points bigint NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE coupon_usages (coupon_id uuid REFERENCES coupons(id), booking_id uuid UNIQUE REFERENCES bookings(id), user_id uuid REFERENCES users(id), benefit_amount bigint NOT NULL CHECK (benefit_amount >= 0), PRIMARY KEY(coupon_id,booking_id));
+CREATE TABLE points_ledger (id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id), booking_id uuid REFERENCES bookings(id), type text NOT NULL CHECK (type IN ('EARN','REDEEM','REVERSAL','EXPIRE','ADJUSTMENT')), points bigint NOT NULL CHECK (points > 0), created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE emergency_contacts (id uuid PRIMARY KEY, area text NOT NULL, type text NOT NULL, name text NOT NULL, phone text NOT NULL, priority integer NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true, verified_at timestamptz);
 CREATE TABLE audit_logs (id uuid PRIMARY KEY, actor_user_id uuid REFERENCES users(id), action text NOT NULL, target_type text NOT NULL, target_id text NOT NULL, metadata jsonb, created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX idx_services_partner ON services(partner_id);
 CREATE INDEX idx_availability_service ON availability(service_id,starts_at);
 CREATE INDEX idx_bookings_user ON bookings(user_id,created_at DESC);
 CREATE INDEX idx_points_user ON points_ledger(user_id,created_at DESC);
+CREATE UNIQUE INDEX uq_points_booking_redeem ON points_ledger(user_id,booking_id) WHERE booking_id IS NOT NULL AND type='REDEEM';
 
 
 -- Partner trial + commission ledger foundation.
@@ -56,31 +57,6 @@ CREATE TABLE partner_commission_ledger (
 );
 CREATE INDEX idx_partner_trial_partner ON partner_trial_ledger(partner_id,status);
 CREATE INDEX idx_partner_commission_partner ON partner_commission_ledger(partner_id,status,created_at DESC);
-
-
-CREATE TABLE inventory_holds (
-  id uuid PRIMARY KEY,
-  service_id uuid NOT NULL REFERENCES services(id),
-  availability_id uuid NOT NULL REFERENCES availability(id),
-  booking_id uuid UNIQUE REFERENCES bookings(id),
-  quantity integer NOT NULL CHECK(quantity > 0),
-  status text NOT NULL CHECK(status IN ('ACTIVE','CONSUMED','RELEASED','EXPIRED')),
-  expires_at timestamptz NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_inventory_holds_availability_active ON inventory_holds(availability_id,expires_at) WHERE status='ACTIVE';
-
-CREATE TABLE idempotency_records (
-  scope text NOT NULL,
-  idempotency_key text NOT NULL,
-  request_hash text NOT NULL,
-  response_code integer NOT NULL,
-  response_body jsonb NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL,
-  PRIMARY KEY(scope,idempotency_key)
-);
-CREATE INDEX idx_idempotency_expiry ON idempotency_records(expires_at);
 
 
 CREATE TABLE inventory_holds (
