@@ -1,0 +1,1 @@
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Coins({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Coins" description="View your LaosTravel reward balance and transaction history. Coins are benefits, not cash."/>}
