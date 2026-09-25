@@ -17,7 +17,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   if(idem==="IN_PROGRESS")throw new BookingTransactionError("REQUEST_IN_PROGRESS","An identical booking request is already processing",409);
   if(idem==="REPLAY"){const prior=await repo.getCompletedIdempotentBooking(tx,input.userId,input.idempotencyKey);if(!prior)throw new BookingTransactionError("REQUEST_IN_PROGRESS","Completed replay record is not yet readable",409);return {...prior,replayed:true};}
   const verified=await verifyBookingQuote(new PostgresQuoteStore(tx),input.bookingRequest);
-  if(verified.quote.serviceId!==input.serviceId||verified.quote.quantity!==input.quantity)throw new BookingTransactionError("PRICE_QUOTE_MISMATCH","Authoritative quote does not match booking input",409);
+  if(verified.quote.serviceId!==input.serviceId||verified.quote.availabilityId!==input.availabilityId||verified.quote.quantity!==input.quantity)throw new BookingTransactionError("PRICE_QUOTE_MISMATCH","Authoritative quote does not match booking input",409);
   const inventory=await repo.lockAvailability(tx,input.availabilityId);
   assertReservableInventory(inventory,input.quantity);
   assertInventoryReservation(await repo.reserveInventory(tx,input.availabilityId,input.quantity));
