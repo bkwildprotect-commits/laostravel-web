@@ -13,6 +13,7 @@ export type TrialLifecycleAction="NONE"|"CONSUME"|"RELEASE";
 export function trialActionForTransition(currentTrial:TrialStatus|undefined,nextBooking:BookingStatus):TrialLifecycleAction{
  if(!currentTrial)return "NONE";
  if(nextBooking==="COMPLETED"&&currentTrial==="RESERVED")return "CONSUME";
- if((nextBooking==="CANCELLED"||nextBooking==="EXPIRED"||nextBooking==="NO_SHOW")&&currentTrial==="RESERVED")return "RELEASE";
+ if(nextBooking==="NO_SHOW"&&currentTrial==="RESERVED")return "CONSUME";
+ if((nextBooking==="CANCELLED"||nextBooking==="EXPIRED")&&currentTrial==="RESERVED")return "RELEASE";
  return "NONE";
 }
