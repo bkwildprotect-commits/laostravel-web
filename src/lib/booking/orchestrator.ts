@@ -3,7 +3,7 @@ import {assertInventoryReservation} from "./postgres-repository-contract";
 import type {TransactionAdapter} from "@/lib/infrastructure/transaction";
 import type {BookingTransactionRepository} from "./repository";
 import {BookingTransactionError} from "./transaction-errors";
-export type AtomicBookingInput={userId:string;partnerId:string;serviceId:string;availabilityId:string;quantity:number;idempotencyKey:string;requestHash:string};
+export type AtomicBookingInput={userId:string;partnerId:string;serviceId:string;availabilityId:string;quantity:number;idempotencyKey:string;requestHash:string;price:{currency:string;baseAmount:string;feesAmount:string;couponAmount:string;pointsBenefitAmount:string;customerTotal:string;priceQuoteId:string}};
 export type AtomicBookingResult={bookingId:string;bookingRef:string;replayed:boolean};
 export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:BookingTransactionRepository,input:AtomicBookingInput):Promise<AtomicBookingResult>{
  return txAdapter.run("SERIALIZABLE",async tx=>{
@@ -16,7 +16,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   assertInventoryReservation(await repo.reserveInventory(tx,input.availabilityId,input.quantity));
   await repo.lockPartnerTrial(tx,input.partnerId);
   const commercial=await repo.allocateCommercialPath(tx,{partnerId:input.partnerId});
-  const booking=await repo.createBooking(tx,{userId:input.userId,partnerId:input.partnerId,serviceId:input.serviceId,availabilityId:input.availabilityId,quantity:input.quantity,commercial});
+  const booking=await repo.createBooking(tx,{userId:input.userId,partnerId:input.partnerId,serviceId:input.serviceId,availabilityId:input.availabilityId,quantity:input.quantity,commercial,price:input.price});
   await repo.persistCommercialPath(tx,{bookingId:booking.bookingId,partnerId:input.partnerId,commercial});
   await repo.attachInventoryToBooking(tx,{bookingId:booking.bookingId,availabilityId:input.availabilityId,quantity:input.quantity});
   await repo.writeAudit(tx,{actorUserId:input.userId,action:"BOOKING_CREATED",targetType:"booking",targetId:booking.bookingId});
