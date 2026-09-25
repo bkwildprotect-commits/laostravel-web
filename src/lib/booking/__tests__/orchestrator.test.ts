@@ -1,13 +1,18 @@
 import {describe,it,expect,vi} from "vitest";import {createBookingAtomically} from "../orchestrator";
-const tx={query:vi.fn(),execute:vi.fn()};
-const adapter={run:async(_iso:"SERIALIZABLE",work:(t:typeof tx)=>Promise<unknown>)=>work(tx)};
-function repo(idem:"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS"="CLAIMED"){return{
- claimIdempotency:vi.fn().mockResolvedValue(idem),lockAvailability:vi.fn(),reserveInventory:vi.fn().mockResolvedValue("hold-1"),
- lockPartnerTrial:vi.fn(),createBooking:vi.fn().mockResolvedValue({bookingId:"b1",bookingRef:"LT-1"}),writeAudit:vi.fn()
+const tx={query:vi.fn(),execute:vi.fn()};const adapter={run:async(_iso:"SERIALIZABLE",work:(t:typeof tx)=>Promise<unknown>)=>work(tx)};
+function repo(idem:"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS"="CLAIMED",path:"TRIAL_FREE"|"COMMISSIONABLE"="TRIAL_FREE"){const commercial=path==="TRIAL_FREE"?{path:"TRIAL_FREE" as const,ordinal:1}:{path:"COMMISSIONABLE" as const,ruleVersion:"rule-v1"};return{
+ claimIdempotency:vi.fn().mockResolvedValue(idem),getCompletedIdempotentBooking:vi.fn().mockResolvedValue({bookingId:"b0",bookingRef:"LT-0"}),
+ lockAvailability:vi.fn().mockResolvedValue({remaining:1}),reserveInventory:vi.fn().mockResolvedValue({remaining:0,version:2}),lockPartnerTrial:vi.fn(),
+ allocateCommercialPath:vi.fn().mockResolvedValue(commercial),createBooking:vi.fn().mockResolvedValue({bookingId:"b1",bookingRef:"LT-1"}),
+ attachInventoryToBooking:vi.fn(),completeIdempotency:vi.fn(),writeAudit:vi.fn()
 }}
-const input={userId:"u1",partnerId:"p1",serviceId:"s1",availabilityId:"a1",quantity:1,idempotencyKey:"idem-123456",requestHash:"hash"};
+const input={userId:"u1",partnerId:"p1",serviceId:"s1",availabilityId:"a1",quantity:1,idempotencyKey:"idem-123456789012",requestHash:"hash"};
 describe("atomic booking orchestrator",()=>{
- it("runs critical operations in one transaction",async()=>{const r=repo();await expect(createBookingAtomically(adapter,r,input)).resolves.toEqual({bookingId:"b1",bookingRef:"LT-1",replayed:false});expect(r.lockAvailability).toHaveBeenCalled();expect(r.reserveInventory).toHaveBeenCalled();expect(r.lockPartnerTrial).toHaveBeenCalled();expect(r.writeAudit).toHaveBeenCalled()});
+ it("runs the full trial path atomically",async()=>{const r=repo();await expect(createBookingAtomically(adapter,r,input)).resolves.toEqual({bookingId:"b1",bookingRef:"LT-1",replayed:false});expect(r.allocateCommercialPath).toHaveBeenCalled();expect(r.createBooking).toHaveBeenCalledWith(tx,expect.objectContaining({commercial:{path:"TRIAL_FREE",ordinal:1}}));expect(r.attachInventoryToBooking).toHaveBeenCalled();expect(r.completeIdempotency).toHaveBeenCalled()});
+ it("supports the commissionable path after trial allocation policy selects it",async()=>{const r=repo("CLAIMED","COMMISSIONABLE");await createBookingAtomically(adapter,r,input);expect(r.createBooking).toHaveBeenCalledWith(tx,expect.objectContaining({commercial:{path:"COMMISSIONABLE",ruleVersion:"rule-v1"}}))});
+ it("replays a completed request without mutating inventory",async()=>{const r=repo("REPLAY");await expect(createBookingAtomically(adapter,r,input)).resolves.toEqual({bookingId:"b0",bookingRef:"LT-0",replayed:true});expect(r.reserveInventory).not.toHaveBeenCalled();expect(r.createBooking).not.toHaveBeenCalled()});
  it("stops on idempotency conflict before inventory mutation",async()=>{const r=repo("CONFLICT");await expect(createBookingAtomically(adapter,r,input)).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});expect(r.reserveInventory).not.toHaveBeenCalled()});
  it("stops concurrent duplicate before inventory mutation",async()=>{const r=repo("IN_PROGRESS");await expect(createBookingAtomically(adapter,r,input)).rejects.toMatchObject({code:"REQUEST_IN_PROGRESS"});expect(r.reserveInventory).not.toHaveBeenCalled()});
+ it("stops when inventory cannot be reserved before commercial allocation",async()=>{const r=repo();r.lockAvailability.mockResolvedValue({remaining:0});await expect(createBookingAtomically(adapter,r,input)).rejects.toBeTruthy();expect(r.allocateCommercialPath).not.toHaveBeenCalled();expect(r.createBooking).not.toHaveBeenCalled()});
+ it("preserves operation ordering across the critical path",async()=>{const r=repo();await createBookingAtomically(adapter,r,input);expect(r.claimIdempotency.mock.invocationCallOrder[0]).toBeLessThan(r.lockAvailability.mock.invocationCallOrder[0]);expect(r.reserveInventory.mock.invocationCallOrder[0]).toBeLessThan(r.lockPartnerTrial.mock.invocationCallOrder[0]);expect(r.allocateCommercialPath.mock.invocationCallOrder[0]).toBeLessThan(r.createBooking.mock.invocationCallOrder[0]);expect(r.createBooking.mock.invocationCallOrder[0]).toBeLessThan(r.completeIdempotency.mock.invocationCallOrder[0])});
 });
