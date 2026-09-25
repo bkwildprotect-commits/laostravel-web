@@ -11,3 +11,14 @@ const results=await Promise.all([worker(randomUUID()),worker(randomUUID())]);
 const committed=results.filter(r=>r.code===0).length;
 if(committed!==1){console.error("Expected exactly one concurrent ordinal-5 reservation to commit",results);process.exit(1)}
 console.log("PASS: exactly one concurrent ordinal-5 trial reservation committed");
+
+const service=randomUUID(),availability=randomUUID();
+const inventorySeed="INSERT INTO services(id,partner_id,name) VALUES('"+service+"','"+partner+"','Concurrency Inventory Service'); INSERT INTO availability(id,service_id,remaining,version) VALUES('"+availability+"','"+service+"',1,1);";
+const seededInventory=await psql([],inventorySeed);if(seededInventory.code!==0){console.error(seededInventory.err);process.exit(1)}
+const inventoryWorker=()=>psql(["-v","availability_id="+availability,"-v","quantity=1","-f","db/integration/concurrency/inventory-worker.sql"]);
+const inventoryResults=await Promise.all([inventoryWorker(),inventoryWorker()]);
+const inventoryCommitted=inventoryResults.filter(r=>r.code===0).length;
+if(inventoryCommitted!==1){console.error("Expected exactly one inventory reservation to commit",inventoryResults);process.exit(1)}
+const finalInventory=await psql(["-Atc","SELECT remaining FROM availability WHERE id='"+availability+"'"],"");
+if(finalInventory.code!==0||finalInventory.out.trim()!=="0"){console.error("Expected final inventory remaining=0",finalInventory);process.exit(1)}
+console.log("PASS: inventory=1 allowed exactly one of two concurrent reservations; final remaining=0");
