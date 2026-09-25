@@ -1,0 +1,1 @@
+import { PartnerDashboard } from "@/components/PartnerDashboard";export default function Dashboard(){return <main className="container partnerPage"><PartnerDashboard/></main>}
