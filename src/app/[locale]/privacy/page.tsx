@@ -1,0 +1,1 @@
+export default function PrivacyPage(){return <main className="container accountPage"><p className="eyebrow">LEGAL</p><h1>Privacy</h1><div className="emptyState"><strong>Privacy notice is not yet published</strong><p>The production notice will describe account, booking, Partner verification and consent data handling before launch.</p></div></main>}
