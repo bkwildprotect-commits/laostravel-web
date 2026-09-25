@@ -1,0 +1,1 @@
+import { PartnerApplication } from "@/components/PartnerApplication";export default function PartnerApply(){return <main className="container partnerPage"><p className="eyebrow">BECOME A PARTNER</p><h1>Join LaosTravel</h1><p className="partnerLead">Create a partner application for human review. Submission does not guarantee approval.</p><PartnerApplication/></main>}
