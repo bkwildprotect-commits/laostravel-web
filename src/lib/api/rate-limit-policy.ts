@@ -1,0 +1,2 @@
+export type RateWindow={count:number;resetAt:number};
+export function checkRateWindow(window:RateWindow|undefined,input:{now:number;limit:number;windowMs:number}){if(!Number.isSafeInteger(input.limit)||input.limit<1||input.windowMs<1000)throw new Error("INVALID_RATE_POLICY");if(!window||window.resetAt<=input.now)return {allowed:true,next:{count:1,resetAt:input.now+input.windowMs}} as const;if(window.count>=input.limit)return {allowed:false,retryAfterMs:window.resetAt-input.now} as const;return {allowed:true,next:{count:window.count+1,resetAt:window.resetAt}} as const}
