@@ -1,0 +1,2 @@
+import {describe,it,expect} from "vitest";import {readInventoryHoldPolicy} from "../inventory-hold-policy";
+describe("inventory hold policy",()=>{it("fails closed when missing",()=>expect(()=>readInventoryHoldPolicy({})).toThrow("BOOKING_HOLD_POLICY_NOT_CONFIGURED"));it("rejects invalid values",()=>expect(()=>readInventoryHoldPolicy({BOOKING_HOLD_MINUTES:"0"})).toThrow("BOOKING_HOLD_POLICY_INVALID"));it("accepts configured integer minutes",()=>expect(readInventoryHoldPolicy({BOOKING_HOLD_MINUTES:"20"})).toEqual({holdMinutes:20}))});
