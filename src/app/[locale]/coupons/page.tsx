@@ -1,0 +1,1 @@
+import { AccountPage } from "@/components/AccountPage";import type { Locale } from "@/i18n/locales";export default async function Coupons({params}:{params:Promise<{locale:string}>}){const {locale}=await params;return <AccountPage locale={locale as Locale} title="Coupons" description="Eligible LaosTravel booking coupons will appear here."/>}
