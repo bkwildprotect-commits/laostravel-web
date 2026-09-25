@@ -1,0 +1,1 @@
+export default function HelpPage(){return <main className="container accountPage"><p className="eyebrow">SUPPORT</p><h1>Help & Support</h1><div className="emptyState"><strong>Support centre is being prepared</strong><p>Traveller and Partner help content will be published here before production launch.</p></div></main>}
