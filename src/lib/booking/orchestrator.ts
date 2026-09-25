@@ -24,6 +24,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   await repo.lockPartnerTrial(tx,input.partnerId);
   const commercial=await repo.allocateCommercialPath(tx,{partnerId:input.partnerId});
   const booking=await repo.createBooking(tx,{userId:input.userId,partnerId:input.partnerId,serviceId:input.serviceId,availabilityId:input.availabilityId,quantity:input.quantity,commercial,price:verified.price});
+  await repo.consumePriceQuote(tx,{priceQuoteId:verified.price.priceQuoteId,bookingId:booking.bookingId});
   await repo.persistCommercialPath(tx,{bookingId:booking.bookingId,partnerId:input.partnerId,commercial});
   await repo.attachInventoryToBooking(tx,{bookingId:booking.bookingId,availabilityId:input.availabilityId,quantity:input.quantity,holdMinutes:holdPolicy.holdMinutes});
   await repo.writeAudit(tx,{actorUserId:input.userId,action:"BOOKING_CREATED",targetType:"booking",targetId:booking.bookingId});
