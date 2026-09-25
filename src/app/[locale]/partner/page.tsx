@@ -1,0 +1,1 @@
+export default function PartnerPage(){return <main className="container section"><h1>LaosTravel Partner</h1><p>Partner registration and business management will be built here.</p></main>}
