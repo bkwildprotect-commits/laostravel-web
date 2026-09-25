@@ -4,6 +4,8 @@ export function validateCreateBooking(input:unknown):{ok:true;value:CreateBookin
  const e:string[]=[]; if(!input||typeof input!=="object")return {ok:false,errors:["Invalid request body"]};
  const x=input as Partial<CreateBookingRequest>;
  if(!x.serviceId||typeof x.serviceId!=="string")e.push("serviceId is required");
+ if(!x.date||typeof x.date!=="string"||Number.isNaN(Date.parse(x.date)))e.push("date must be a valid date");
+ if(x.optionId!==undefined&&(typeof x.optionId!=="string"||!x.optionId.trim()))e.push("optionId must be a non-empty string when provided");
  if(!x.availabilityToken||typeof x.availabilityToken!=="string")e.push("availabilityToken is required");
  if(!x.priceQuoteId||typeof x.priceQuoteId!=="string")e.push("priceQuoteId is required");
  if(!Number.isInteger(x.quantity)||Number(x.quantity)<1||Number(x.quantity)>100)e.push("quantity must be an integer from 1 to 100");
