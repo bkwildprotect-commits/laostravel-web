@@ -1,6 +1,7 @@
 -- LaosTravel shared PostgreSQL schema foundation (provider-neutral)
 CREATE TABLE users (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, status text NOT NULL DEFAULT 'ACTIVE', created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE user_profiles (user_id uuid PRIMARY KEY REFERENCES users(id), display_name text, locale varchar(5) NOT NULL DEFAULT 'en');
+CREATE TABLE auth_identities (issuer text NOT NULL, subject text NOT NULL, user_id uuid NOT NULL REFERENCES users(id), created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(issuer,subject), UNIQUE(issuer,user_id));
 CREATE TABLE partners (id uuid PRIMARY KEY, name text NOT NULL, verification_status text NOT NULL DEFAULT 'DRAFT', business_status text NOT NULL DEFAULT 'DRAFT', created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE partner_members (partner_id uuid REFERENCES partners(id), user_id uuid REFERENCES users(id), role text NOT NULL, PRIMARY KEY(partner_id,user_id));
 CREATE TABLE services (id uuid PRIMARY KEY, partner_id uuid NOT NULL REFERENCES partners(id), category text NOT NULL, status text NOT NULL DEFAULT 'DRAFT', booking_mode text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
