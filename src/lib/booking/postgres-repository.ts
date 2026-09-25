@@ -13,9 +13,16 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
   // Exact commission rate is intentionally not selected here; persistence requires an approved versioned rule.
   return {path:"COMMISSIONABLE",ruleVersion:"UNRESOLVED"};
  }
- async createBooking(_tx:TransactionContext,_input:Parameters<BookingTransactionRepository["createBooking"]>[1]){throw new Error("BOOKING_PERSISTENCE_NOT_WIRED")}
+ async createBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["createBooking"]>[1]){
+  if(input.commercial.path==="COMMISSIONABLE"&&input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
+  const ids=await tx.query<{id:string}>("SELECT gen_random_uuid() id");const bookingId=ids[0].id;const bookingRef="LT-"+bookingId.replace(/-/g,"").slice(0,12).toUpperCase();
+  await tx.execute("INSERT INTO bookings(id,booking_ref,user_id,status,payment_status) VALUES($1,$2,$3,'PENDING','PENDING')",[bookingId,bookingRef,input.userId]);
+  await tx.execute("INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),$1,$2,$3,$4)",[bookingId,input.serviceId,input.availabilityId,input.quantity]);
+  await tx.execute("INSERT INTO price_snapshots(booking_id,currency,base_amount,fees_amount,coupon_amount,points_benefit_amount,customer_total,commission_rule_version) VALUES($1,$2,$3::bigint,$4::bigint,$5::bigint,$6::bigint,$7::bigint,$8)",[bookingId,input.price.currency,input.price.baseAmount,input.price.feesAmount,input.price.couponAmount,input.price.pointsBenefitAmount,input.price.customerTotal,input.commercial.path==="COMMISSIONABLE"?input.commercial.ruleVersion:null]);
+  return {bookingId,bookingRef};
+ }
  async persistCommercialPath(tx:TransactionContext,input:{bookingId:string;partnerId:string;commercial:CommercialAllocation}){if(input.commercial.path==="COMMISSIONABLE"){if(!input.commercial.ruleVersion||input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");throw new Error("COMMISSION_AMOUNT_PERSISTENCE_NOT_WIRED")}await tx.execute("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'TRIAL_FREE')",[input.bookingId,input.partnerId]);await tx.execute("INSERT INTO partner_trial_ledger(id,partner_id,booking_id,commercial_path,trial_ordinal,status) VALUES(gen_random_uuid(),$1,$2,'TRIAL_FREE',$3,'RESERVED')",[input.partnerId,input.bookingId,input.commercial.ordinal])}
- async attachInventoryToBooking(_tx:TransactionContext,_input:Parameters<BookingTransactionRepository["attachInventoryToBooking"]>[1]){throw new Error("INVENTORY_HOLD_PERSISTENCE_NOT_WIRED")}
+ async attachInventoryToBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["attachInventoryToBooking"]>[1]){await tx.execute("INSERT INTO inventory_holds(id,service_id,availability_id,booking_id,quantity,status,expires_at) SELECT gen_random_uuid(),service_id,$2,$1,$3,'ACTIVE',now()+interval '15 minutes' FROM availability WHERE id=$2",[input.bookingId,input.availabilityId,input.quantity])}
  async completeIdempotency(tx:TransactionContext,input:{userId:string;key:string;bookingId:string}){await tx.execute("UPDATE booking_idempotency SET booking_id=$3,status='COMPLETED' WHERE user_id=$1 AND idempotency_key=$2 AND status='PROCESSING'",[input.userId,input.key,input.bookingId])}
  async writeAudit(tx:TransactionContext,input:{actorUserId:string;action:string;targetType:string;targetId:string}){await tx.execute("INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id) VALUES(gen_random_uuid(),$1,$2,$3,$4)",[input.actorUserId,input.action,input.targetType,input.targetId])}
 }
