@@ -1,6 +1,6 @@
 # Tour lead intake
 
-POST /api/v1/tour-leads validates name, phone, email, travel date, guest count and explicit contact consent on the server.
+POST /api/v1/tour-leads requires a syntactically valid `idempotency-key` header and validates name, phone, email, travel date, guest count and explicit contact consent on the server. The header is contract validation only at this stage; durable replay/conflict protection is not claimed until approved persistent storage is configured.
 
 The endpoint currently fails closed with HTTP 503 after successful validation because no persistent production storage provider or retention policy has been approved. It must not display a success acknowledgement unless persistence succeeds.
 
