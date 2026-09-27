@@ -30,5 +30,6 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/002_trial_ordinals.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/003_quote_replay_rollback.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/004_idempotent_retry.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/005_tour_lead_idempotency.sql
       - name: Run concurrency invariants
         run: node scripts/run-db-concurrency.mjs
