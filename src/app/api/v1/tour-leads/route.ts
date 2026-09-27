@@ -1,9 +1,8 @@
-import {NextResponse} from "next/server";import {validateTourLead} from "../../../../lib/api/tour-lead-validation";import {normalizeSubmissionKey} from "../../../../lib/api/submission-idempotency";
+import {NextResponse} from "next/server";import {validateTourLead} from "../../../../lib/api/tour-lead-validation";import {normalizeSubmissionKey} from "../../../../lib/api/submission-idempotency";import {getTourLeadReadiness} from "../../../../lib/api/tour-lead-readiness";import {getPostgresPool} from "../../../../lib/infrastructure/postgres-runtime";import {PostgresTourLeadRepository} from "../../../../lib/api/postgres-tour-lead-repository";import {persistTourLead} from "../../../../lib/api/tour-lead-persistence";
 export async function POST(request:Request){
  let submissionKey:string;try{submissionKey=normalizeSubmissionKey(request.headers.get("idempotency-key"))}catch{return NextResponse.json({data:null,error:{code:"INVALID_IDEMPOTENCY_KEY",message:"A valid idempotency key is required"}},{status:400})}
  let body:unknown;try{body=await request.json()}catch{return NextResponse.json({data:null,error:{code:"INVALID_JSON",message:"Invalid request body"}},{status:400})}
  const result=validateTourLead(body);if(!result.ok)return NextResponse.json({data:null,error:{code:result.code,message:"Invalid booking enquiry"}},{status:400});
- // Validate the request contract now, but do not claim persistence or idempotent storage before an approved durable provider exists.
- void submissionKey;
- return NextResponse.json({data:null,error:{code:"LEAD_STORAGE_NOT_CONFIGURED",message:"Booking enquiry storage is not configured yet"}},{status:503});
+ const readiness=getTourLeadReadiness();if(!readiness.ready)return NextResponse.json({data:null,error:{code:"LEAD_STORAGE_NOT_CONFIGURED",message:"Booking enquiry storage is not configured yet"}},{status:503});
+ try{const stored=await persistTourLead(new PostgresTourLeadRepository(getPostgresPool()),submissionKey,result.value);if(stored.kind==="CONFLICT")return NextResponse.json({data:null,error:{code:"IDEMPOTENCY_CONFLICT",message:"Idempotency key was already used for different data"}},{status:409});return NextResponse.json({data:{id:stored.id,replayed:stored.kind==="REPLAY"},error:null},{status:stored.kind==="CREATED"?201:200})}catch{return NextResponse.json({data:null,error:{code:"LEAD_STORAGE_UNAVAILABLE",message:"Booking enquiry storage is temporarily unavailable"}},{status:503})}
 }
