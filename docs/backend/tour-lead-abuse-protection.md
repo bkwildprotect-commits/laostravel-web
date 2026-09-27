@@ -16,7 +16,7 @@ The HMAC helper and regression tests are implemented, but this does **not** mean
 ## Production enablement checklist
 
 Do not set `TOUR_LEAD_API_APPROVED=true` until all of the following are true:
-- approved durable lead storage is configured and integration-tested;
+- approved durable lead storage is configured and integration-tested; the readiness gate requires `DATABASE_URL`, but presence of that variable alone does not prove the lead-storage schema or persistence path is ready;
 - shared persistent rate limiting is configured and enforced atomically across application instances;
 - `TOUR_LEAD_RATE_LIMIT_SECRET` is a server-only secret with at least 32 characters and is not exposed to browser code or logs;
 - durable idempotency claim/replay/conflict handling is implemented and tested;
