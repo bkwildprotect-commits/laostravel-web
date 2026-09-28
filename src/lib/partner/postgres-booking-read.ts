@@ -1,5 +1,7 @@
 import type {Pool} from "pg";
 
+export class PartnerAccessDeniedError extends Error{constructor(){super("PARTNER_ACCESS_DENIED")}}
+
 export type PartnerBookingRow={
  bookingId:string;bookingRef:string;status:string;paymentStatus:string;createdAt:string;
  serviceId:string;quantity:number;currency:string;customerTotal:string;commercialPath:"TRIAL_FREE"|"COMMISSIONABLE";
@@ -7,6 +9,8 @@ export type PartnerBookingRow={
 
 export async function listPartnerBookings(pool:Pool,input:{userId:string;partnerId:string;limit?:number}):Promise<PartnerBookingRow[]>{
  const limit=Math.min(Math.max(input.limit??50,1),100);
+ const membership=await pool.query<{allowed:boolean}>("SELECT EXISTS(SELECT 1 FROM partner_members WHERE partner_id=$1 AND user_id=$2) AS allowed",[input.partnerId,input.userId]);
+ if(!membership.rows[0]?.allowed)throw new PartnerAccessDeniedError();
  const result=await pool.query<{
   booking_id:string;booking_ref:string;status:string;payment_status:string;created_at:Date;
   service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:"TRIAL_FREE"|"COMMISSIONABLE";
