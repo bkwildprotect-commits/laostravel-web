@@ -55,4 +55,17 @@ describe("postgres booking lifecycle mutation",()=>{
   await expect(mutateBookingLifecycle({query,execute} as any,{bookingId:"c5",event:"COMPLETE"})).rejects.toMatchObject({code:"COMMISSION_LEDGER_STATE_CHANGED"});
  });
 
+ it("consumes an active inventory hold when a pending booking is confirmed",async()=>{
+  const query=vi.fn().mockResolvedValueOnce([{status:"PENDING"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"}]).mockResolvedValueOnce([]);
+  const execute=vi.fn().mockResolvedValue({rowCount:1});
+  const result=await mutateBookingLifecycle({query,execute} as any,{bookingId:"i1",event:"CONFIRM"});
+  expect(result).toEqual({status:"CONFIRMED"});
+  expect(execute.mock.calls.some(([sql,args])=>String(sql).includes("UPDATE inventory_holds")&&args?.[1]==="CONSUMED")).toBe(true);
+ });
+ it("fails closed if an active inventory hold changes concurrently",async()=>{
+  const query=vi.fn().mockResolvedValueOnce([{status:"PENDING"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"}]).mockResolvedValueOnce([]);
+  const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
+  await expect(mutateBookingLifecycle({query,execute} as any,{bookingId:"i2",event:"CONFIRM"})).rejects.toMatchObject({code:"INVENTORY_HOLD_STATE_CHANGED"});
+ });
+
 });
