@@ -13,7 +13,7 @@ BEGIN
   b:=gen_random_uuid();
   INSERT INTO bookings(id,booking_ref,user_id,status) VALUES(b,'E2E-'||i||'-'||b,u,'PENDING');
   INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),b,s,a,1);
-  INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path,trial_ordinal) VALUES(b,p,'TRIAL_FREE',i);
+  INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES(b,p,'TRIAL_FREE');
   INSERT INTO partner_trial_ledger(id,partner_id,booking_id,commercial_path,trial_ordinal,status) VALUES(gen_random_uuid(),p,b,'TRIAL_FREE',i,'RESERVED');
  END LOOP;
  IF (SELECT remaining FROM availability WHERE id=a)<>0 THEN RAISE EXCEPTION 'TEST_FAILED: expected inventory 0';END IF;
