@@ -16,7 +16,7 @@ export async function GET(request:Request,{params}:{params:Promise<{partnerId:st
   if(!partnerId)return NextResponse.json({data:null,error:{code:"VALIDATION_ERROR",message:"Partner id is required."}},{status:400});
   const url=new URL(request.url);const raw=url.searchParams.get("limit");const limit=raw===null?undefined:Number(raw);
   if(limit!==undefined&&(!Number.isSafeInteger(limit)||limit<1))return NextResponse.json({data:null,error:{code:"VALIDATION_ERROR",message:"Limit must be a positive integer."}},{status:400});
-  const rows=await listPartnerBookings(getPostgresPool() as any,{userId:user.userId,partnerId,limit});
+  const rows=await listPartnerBookings(getPostgresPool(),{userId:user.userId,partnerId,limit});
   return NextResponse.json({data:rows,error:null},{status:200});
  }catch(error){
   if(error instanceof PartnerAccessDeniedError)return NextResponse.json({data:null,error:{code:"PARTNER_ACCESS_DENIED",message:"You do not have access to this partner."}},{status:403});

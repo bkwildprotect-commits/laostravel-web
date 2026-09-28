@@ -7,5 +7,5 @@ export interface AuthenticationAdapter{authenticate(request:Request):Promise<Aut
  * Never resolve userId from request JSON or unverified token claims.
  */
 export class UnconfiguredAuthenticationAdapter implements AuthenticationAdapter{
- async authenticate(_request:Request):Promise<AuthenticatedUser>{throw new AuthenticationError("AUTH_NOT_CONFIGURED")}
+ async authenticate(request:Request):Promise<AuthenticatedUser>{void request;throw new AuthenticationError("AUTH_NOT_CONFIGURED")}
 }

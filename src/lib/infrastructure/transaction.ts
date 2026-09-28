@@ -7,7 +7,8 @@ export interface TransactionAdapter{
  run<T>(isolation:TransactionIsolation,work:(tx:TransactionContext)=>Promise<T>):Promise<T>;
 }
 export class UnconfiguredTransactionAdapter implements TransactionAdapter{
- async run<T>(_isolation:TransactionIsolation,_work:(tx:TransactionContext)=>Promise<T>):Promise<T>{
+ async run<T>(isolation:TransactionIsolation,work:(tx:TransactionContext)=>Promise<T>):Promise<T>{
+  void isolation;void work;
   throw new Error("PostgreSQL transaction adapter is not configured");
  }
 }
