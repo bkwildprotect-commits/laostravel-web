@@ -23,7 +23,7 @@ const digits = (value: string) => /^\d+$/.test(value);
 function validRate(rate: IndicativeRate, currency: DisplayCurrency, now: Date): boolean {
   const observed = Date.parse(rate.observedAt);
   return rate.currency === currency && digits(rate.numerator) && digits(rate.denominator) &&
-    BigInt(rate.numerator) > 0n && BigInt(rate.denominator) > 0n &&
+    BigInt(rate.numerator) > BigInt(0) && BigInt(rate.denominator) > BigInt(0) &&
     rate.source.trim().length > 0 && Number.isFinite(observed) &&
     observed <= now.getTime() && now.getTime() - observed <= MAX_RATE_AGE_MS;
 }
@@ -42,7 +42,7 @@ export function indicativeDisplayQuote(input: {
   const amount = BigInt(input.lakAmount);
   const numerator = BigInt(input.rate.numerator);
   const denominator = BigInt(input.rate.denominator);
-  const roundedMinor = (amount * numerator + denominator / 2n) / denominator;
+  const roundedMinor = (amount * numerator + denominator / BigInt(2)) / denominator;
   return {
     ...source, displayedCurrency: input.currency, displayedAmount: roundedMinor.toString(),
     approximate: true, rateSource: input.rate.source, rateObservedAt: input.rate.observedAt
