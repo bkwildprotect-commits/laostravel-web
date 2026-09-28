@@ -33,6 +33,7 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/005_quote_service_availability.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/005_tour_lead_idempotency.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/006_tour_lead_rate_limit.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/008_booking_trial_rollback.sql
       - name: Run booking trial E2E
         run: |
           echo "::group::007_booking_trial_e2e.sql"
