@@ -12,7 +12,10 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'TEST_FAILED: inventory reservation failed at booking %',i;END IF;
   b:=gen_random_uuid();
   INSERT INTO bookings(id,booking_ref,user_id,status) VALUES(b,'E2E-'||i||'-'||b,u,'PENDING');
-  INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),b,s,a,1);\n  INSERT INTO price_snapshots(booking_id,price_quote_id,currency,base_amount,fees_amount,coupon_amount,points_benefit_amount,customer_total) VALUES(b,q,'LAK',100000,0,0,0,100000);\n  UPDATE price_quotes SET consumed_at=now(),consumed_booking_id=b WHERE id=q AND consumed_at IS NULL;\n  IF NOT FOUND THEN RAISE EXCEPTION 'TEST_FAILED: quote consumption failed at booking %',i;END IF;
+  INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),b,s,a,1);
+  INSERT INTO price_snapshots(booking_id,price_quote_id,currency,base_amount,fees_amount,coupon_amount,points_benefit_amount,customer_total) VALUES(b,q,'LAK',100000,0,0,0,100000);
+  UPDATE price_quotes SET consumed_at=now(),consumed_booking_id=b WHERE id=q AND consumed_at IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'TEST_FAILED: quote consumption failed at booking %',i;END IF;
   INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES(b,p,'TRIAL_FREE');
   INSERT INTO partner_trial_ledger(id,partner_id,booking_id,commercial_path,trial_ordinal,status) VALUES(gen_random_uuid(),p,b,'TRIAL_FREE',i,'RESERVED');
  END LOOP;
