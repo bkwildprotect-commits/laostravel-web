@@ -10,6 +10,8 @@ BEGIN
  FOR i IN 1..5 LOOP
   UPDATE availability SET remaining=remaining-1,version=version+1 WHERE id=a AND remaining>=1;
   IF NOT FOUND THEN RAISE EXCEPTION 'TEST_FAILED: inventory reservation failed at booking %',i;END IF;
+  q:=gen_random_uuid();
+  INSERT INTO price_quotes(id,service_id,availability_id,service_date,quantity,availability_token,currency,base_amount,customer_total,expires_at) VALUES(q,s,a,current_date,1,'e2e-token-'||q,'LAK',100000,100000,now()+interval '10 minutes');
   b:=gen_random_uuid();
   INSERT INTO bookings(id,booking_ref,user_id,status) VALUES(b,'E2E-'||i||'-'||b,u,'PENDING');
   INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),b,s,a,1);
