@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {AuthenticationError} from "../../../../../../lib/auth/authentication";
 import {getRuntimeAuthenticationAdapter} from "../../../../../../lib/auth/runtime";
 import {getPostgresPool} from "../../../../../../lib/infrastructure/postgres-runtime";
-import {listPartnerBookings} from "../../../../../../lib/partner/postgres-booking-read";
+import {listPartnerBookings,PartnerAccessDeniedError} from "../../../../../../lib/partner/postgres-booking-read";
 
 export async function GET(request:Request,{params}:{params:Promise<{partnerId:string}>}){
  let user;
@@ -19,6 +19,7 @@ export async function GET(request:Request,{params}:{params:Promise<{partnerId:st
   const rows=await listPartnerBookings(getPostgresPool() as any,{userId:user.userId,partnerId,limit});
   return NextResponse.json({data:rows,error:null},{status:200});
  }catch(error){
+  if(error instanceof PartnerAccessDeniedError)return NextResponse.json({data:null,error:{code:"PARTNER_ACCESS_DENIED",message:"You do not have access to this partner."}},{status:403});
   console.error("Partner booking read failed",error);
   return NextResponse.json({data:null,error:{code:"INTERNAL_ERROR",message:"Partner bookings could not be loaded."}},{status:500});
  }
