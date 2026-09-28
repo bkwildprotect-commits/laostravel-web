@@ -11,7 +11,9 @@ export function decideCommissionEligibility(entries:TrialEntry[]):CommissionElig
  return {kind:"COMMISSIONABLE"};
 }
 
-export function nextTrialStatus(current:TrialStatus,event:"QUALIFIED"|"CANCELLED"):TrialStatus{
+export type TrialLifecycleEvent="QUALIFIED"|"CANCELLED"|"EXPIRED"|"NO_SHOW";
+
+export function nextTrialStatus(current:TrialStatus,event:TrialLifecycleEvent):TrialStatus{
  if(current==="CONSUMED")return current;
  if(event==="QUALIFIED")return "CONSUMED";
  return "RELEASED";
