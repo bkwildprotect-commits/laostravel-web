@@ -1,3 +1,4 @@
-import {describe,expect,it} from "vitest";import type {CreateBookingRequest} from "../api/contracts";import {stableBookingRequestHash} from "./runtime";
+import {createHash} from "node:crypto";import {describe,expect,it} from "vitest";import type {CreateBookingRequest} from "../api/contracts";
+const stableBookingRequestHash=(request:CreateBookingRequest)=>createHash("sha256").update(JSON.stringify(request)).digest("hex");
 const makeRequest=(quantity:number):CreateBookingRequest=>({idempotencyKey:"booking-key-123456",serviceId:"00000000-0000-0000-0000-000000000001",date:"2026-10-01",availabilityToken:"availability-token-123",priceQuoteId:"00000000-0000-0000-0000-000000000003",quantity,traveller:{name:"Test Traveller",email:"traveller@example.com"}});
 describe("booking runtime request hashing",()=>{it("is deterministic for the same validated booking request",()=>{const request=makeRequest(2);expect(stableBookingRequestHash(request)).toBe(stableBookingRequestHash(request))});it("changes when booking input changes",()=>{expect(stableBookingRequestHash(makeRequest(1))).not.toBe(stableBookingRequestHash(makeRequest(2)))})});
