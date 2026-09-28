@@ -10,6 +10,15 @@ describe("partner booking reader",()=>{
   expect(sql).toContain("pm.partner_id=$1 AND pm.user_id=$2");
   expect(params).toEqual(["partner-a","user-a",50]);
  });
+ it("returns no rows when authenticated user is not a member of the requested partner",async()=>{
+  const query=vi.fn().mockResolvedValue({rows:[]});
+  const rows=await listPartnerBookings({query} as any,{userId:"user-outsider",partnerId:"partner-private"});
+  expect(rows).toEqual([]);
+  const [sql,params]=query.mock.calls[0];
+  expect(sql).toContain("FROM partner_members pm");
+  expect(sql).toContain("pm.partner_id=$1 AND pm.user_id=$2");
+  expect(params.slice(0,2)).toEqual(["partner-private","user-outsider"]);
+ });
  it("caps page size to protect the shared database",async()=>{
   const query=vi.fn().mockResolvedValue({rows:[]});
   await listPartnerBookings({query} as any,{userId:"u",partnerId:"p",limit:1000});
