@@ -8,6 +8,7 @@ BEGIN
  INSERT INTO availability(id,service_id,remaining,version) VALUES(a,s,1,1);
  INSERT INTO bookings(id,booking_ref,user_id,status) VALUES(b,'LCR-'||b,u,'CONFIRMED');
  INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),b,s,a,1);
+ INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES(b,p,'TRIAL_FREE');
  INSERT INTO partner_trial_ledger(id,partner_id,booking_id,commercial_path,trial_ordinal,status) VALUES(t,p,b,'TRIAL_FREE',1,'RESERVED');
 
  BEGIN
