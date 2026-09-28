@@ -4,7 +4,7 @@ DO $$
 DECLARE p uuid:=gen_random_uuid();u uuid:=gen_random_uuid();s uuid:=gen_random_uuid();a uuid:=gen_random_uuid();q uuid;b uuid;i int;
 BEGIN
  INSERT INTO users(id,email) VALUES(u,'e2e-'||u||'@example.invalid');
- INSERT INTO partners(id,name,verification_status,business_status) VALUES(p,'E2E Trial Partner','VERIFIED','ACTIVE');
+ INSERT INTO partners(id,name) VALUES(p,'E2E Trial Partner');
  INSERT INTO services(id,partner_id,category,status,booking_mode) VALUES(s,p,'TOUR','ACTIVE','CAPACITY');
  INSERT INTO availability(id,service_id,remaining,version) VALUES(a,s,5,1);
  FOR i IN 1..5 LOOP
