@@ -35,7 +35,7 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   const r=await tx.execute("UPDATE partner_commission_ledger SET status=\'EARNED\',earned_at=NOW() WHERE booking_id=$1 AND status=\'PENDING\'",[input.bookingId]);
   if(r.rowCount!==1)throw new BookingLifecycleMutationError("COMMISSION_LEDGER_STATE_CHANGED");
  }else if(commissionAction==="VOID"){
-  const r=await tx.execute("UPDATE partner_commission_ledger SET status=\'VOID\',voided_at=NOW() WHERE booking_id=$1 AND status=\'PENDING\'",[input.bookingId]);
+  const r=await tx.execute("UPDATE partner_commission_ledger SET status=\'VOID\' WHERE booking_id=$1 AND status=\'PENDING\'",[input.bookingId]);
   if(r.rowCount!==1)throw new BookingLifecycleMutationError("COMMISSION_LEDGER_STATE_CHANGED");
  }
  return {status:next};
