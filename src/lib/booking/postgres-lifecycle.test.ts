@@ -27,13 +27,16 @@ describe("postgres booking lifecycle mutation",()=>{
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as any,{bookingId:"c1",event:"COMPLETE"});
   expect(result).toEqual({status:"COMPLETED"});
-  expect(execute.mock.calls.some(([sql])=>String(sql).includes("status='EARNED'"))).toBe(true);
+  expect(String(query.mock.calls[3][0])).toContain("FROM partner_commission_ledger");
+  expect(execute.mock.calls.some(([sql])=>String(sql).includes("UPDATE partner_commission_ledger")&&String(sql).includes("status='EARNED'"))).toBe(true);
  });
  it("voids pending commission when a pending booking is cancelled",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"PENDING"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await mutateBookingLifecycle({query,execute} as any,{bookingId:"c2",event:"CANCEL"});
-  expect(execute.mock.calls.some(([sql])=>String(sql).includes("status='VOID'"))).toBe(true);
+  const mutation=String(execute.mock.calls.find(([sql])=>String(sql).includes("UPDATE partner_commission_ledger"))?.[0]);
+  expect(mutation).toContain("status='VOID'");
+  expect(mutation).not.toContain("voided_at");
  });
  it("does not automatically mutate commission on no-show",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"CONFIRMED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
