@@ -65,6 +65,13 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(result).toEqual({status:"CONFIRMED"});
   expect(execute.mock.calls.some(([sql,args])=>String(sql).includes("UPDATE inventory_holds")&&args?.[1]==="CONSUMED")).toBe(true);
  });
+ it("consumes every active inventory hold for a multi-item booking",async()=>{
+  const query=vi.fn().mockResolvedValueOnce([{status:"PENDING"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"},{status:"ACTIVE"}]).mockResolvedValueOnce([]);
+  const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:2});
+  const result=await mutateBookingLifecycle({query,execute} as any,{bookingId:"i-multi",event:"CONFIRM"});
+  expect(result).toEqual({status:"CONFIRMED"});
+  expect(execute.mock.calls[1][1]).toEqual(["i-multi","CONSUMED"]);
+ });
  it("fails closed if an active inventory hold changes concurrently",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"PENDING"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"}]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
