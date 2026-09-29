@@ -15,7 +15,9 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
  const trials=await tx.query<{status:TrialStatus}>("SELECT status FROM partner_trial_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
  const trial=trials[0];const action=trialActionForTransition(trial?.status,next);
  const holds=await tx.query<{status:InventoryHoldStatus}>("SELECT status FROM inventory_holds WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
- const hold=holds[0];const holdAction=hold?inventoryHoldActionForBooking({bookingFrom:booking.status,bookingTo:next,hold:hold.status}):"NONE";
+ const holdActions=holds.map(hold=>inventoryHoldActionForBooking({bookingFrom:booking.status,bookingTo:next,hold:hold.status}));
+ const holdAction=holdActions.find(action=>action!=="NONE")??"NONE";
+ const expectedHoldMutations=holdActions.filter(action=>action===holdAction).length;
  const commissions=await tx.query<{status:CommissionLedgerStatus}>("SELECT status FROM partner_commission_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
  const commission=commissions[0];const commissionAction=commission?commissionActionForBooking(next,commission.status):"NONE";
  await tx.execute("UPDATE bookings SET status=$2 WHERE id=$1",[input.bookingId,next]);
@@ -29,7 +31,7 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
  if(holdAction!=="NONE"){
   const target=holdAction==="CONSUME"?"CONSUMED":holdAction==="RELEASE"?"RELEASED":"EXPIRED";
   const r=await tx.execute("UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status=\'ACTIVE\'",[input.bookingId,target]);
-  if(r.rowCount!==1)throw new BookingLifecycleMutationError("INVENTORY_HOLD_STATE_CHANGED");
+  if(r.rowCount!==expectedHoldMutations)throw new BookingLifecycleMutationError("INVENTORY_HOLD_STATE_CHANGED");
  }
  if(commissionAction==="EARN"){
   const r=await tx.execute("UPDATE partner_commission_ledger SET status=\'EARNED\',earned_at=NOW() WHERE booking_id=$1 AND status=\'PENDING\'",[input.bookingId]);
