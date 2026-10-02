@@ -4,12 +4,12 @@ import {resolve} from "node:path";
 
 describe("PartnerBookingList lifecycle controls",()=>{
  const source=readFileSync(resolve(process.cwd(),"src/components/partner/PartnerBookingList.tsx"),"utf8");
- it("offers only approved partner-facing actions for pending bookings",()=>{
-  expect(source).toContain('if(status==="PENDING")return[{event:"CONFIRM"');
+ it("offers only approved partner-facing actions for requested bookings",()=>{
+  expect(source).toContain('if(status==="REQUESTED")return[{event:"CONFIRM"');
   expect(source).toContain('{event:"CANCEL",label:"ยกเลิก"}');
  });
  it("offers completion cancellation and no-show only after confirmation",()=>{
-  expect(source).toContain('if(status==="CONFIRMED")return[{event:"COMPLETE"');
+  expect(source).toContain('if(status==="CONFIRMED")return[{event:"CHECK_IN"');
   expect(source).toContain('{event:"MARK_NO_SHOW",label:"ลูกค้าไม่มา"}');
  });
  it("does not expose EXPIRE as a manual partner action",()=>{

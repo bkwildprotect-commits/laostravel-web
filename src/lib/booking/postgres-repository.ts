@@ -17,7 +17,7 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
  async createBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["createBooking"]>[1]){
   if(input.commercial.path==="COMMISSIONABLE"&&input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
   const ids=await tx.query<{id:string}>("SELECT gen_random_uuid() id");const bookingId=ids[0].id;const bookingRef="LT-"+bookingId.replace(/-/g,"").slice(0,12).toUpperCase();
-  await tx.execute("INSERT INTO bookings(id,booking_ref,user_id,status,payment_status) VALUES($1,$2,$3,'PENDING','PENDING')",[bookingId,bookingRef,input.userId]);
+  await tx.execute("INSERT INTO bookings(id,booking_ref,user_id,status,payment_status) VALUES($1,$2,$3,'REQUESTED','PENDING')",[bookingId,bookingRef,input.userId]);
   await tx.execute("INSERT INTO booking_items(id,booking_id,service_id,availability_id,quantity) VALUES(gen_random_uuid(),$1,$2,$3,$4)",[bookingId,input.serviceId,input.availabilityId,input.quantity]);
   await tx.execute("INSERT INTO price_snapshots(booking_id,price_quote_id,currency,base_amount,fees_amount,coupon_amount,points_benefit_amount,customer_total,commission_rule_version) VALUES($1,$9::uuid,$2,$3::bigint,$4::bigint,$5::bigint,$6::bigint,$7::bigint,$8)",[bookingId,input.price.currency,input.price.baseAmount,input.price.feesAmount,input.price.couponAmount,input.price.pointsBenefitAmount,input.price.customerTotal,input.commercial.path==="COMMISSIONABLE"?input.commercial.ruleVersion:null,input.price.priceQuoteId]);
   return {bookingId,bookingRef};
