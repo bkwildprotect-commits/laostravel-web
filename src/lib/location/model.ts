@@ -16,8 +16,11 @@ export function navigationUrl(value:GeoCoordinates):string{
  return `https://www.google.com/maps/dir/?api=1&destination=${value.latitude},${value.longitude}`;
 }
 
-export function canExposeLocation(input:{visibility:GeoVisibility;verificationStatus:GeoVerificationStatus;hasCompletedBookingContext:boolean}):boolean{
+export function canExposeLocation(input:{visibility:GeoVisibility;verificationStatus:GeoVerificationStatus;hasBookingAccess:boolean}):boolean{
  if(input.visibility==="PRIVATE")return false;
  if(input.verificationStatus!=="VERIFIED")return false;
- return input.visibility==="PUBLIC"||input.hasCompletedBookingContext;
+ return input.visibility==="PUBLIC"||input.hasBookingAccess;
 }
+
+export type NavigationBookingStatus="PENDING"|"CONFIRMED"|"COMPLETED"|"CANCELLED"|"EXPIRED"|"NO_SHOW";
+export function hasBookingNavigationAccess(status:NavigationBookingStatus):boolean{return status==="CONFIRMED"||status==="COMPLETED"}
