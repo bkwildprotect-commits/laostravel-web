@@ -64,18 +64,19 @@ describe("postgres booking lifecycle mutation",()=>{
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"i1",event:"CONFIRM"});
   expect(result).toEqual({status:"CONFIRMED"});
+  expect(execute.mock.calls.some(([sql])=>String(sql).includes("INSERT INTO booking_location_snapshots")&&String(sql).includes("VERIFIED"))).toBe(true);
   expect(execute.mock.calls.some(([sql,args])=>String(sql).includes("UPDATE inventory_holds")&&args?.[1]==="CONSUMED")).toBe(true);
  });
  it("consumes every active inventory hold for a multi-item booking",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"},{status:"ACTIVE"}]).mockResolvedValueOnce([]);
-  const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:2});
+  const execute=vi.fn().mockResolvedValueOnce({rowCount:0}).mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:2});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"i-multi",event:"CONFIRM"});
   expect(result).toEqual({status:"CONFIRMED"});
-  expect(execute.mock.calls[1][1]).toEqual(["i-multi","CONSUMED"]);
+  expect(execute.mock.calls[2][1]).toEqual(["i-multi","CONSUMED"]);
  });
  it("fails closed if an active inventory hold changes concurrently",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"}]).mockResolvedValueOnce([]);
-  const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
+  const execute=vi.fn().mockResolvedValueOnce({rowCount:0}).mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
   await expect(mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"i2",event:"CONFIRM"})).rejects.toMatchObject({code:"INVENTORY_HOLD_STATE_CHANGED"});
  });
 

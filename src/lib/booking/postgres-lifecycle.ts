@@ -18,6 +18,9 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
  const holdActions=holds.map(hold=>inventoryHoldActionForBooking({bookingFrom:booking.status,bookingTo:next,hold:hold.status}));
  const holdAction=holdActions.find(action=>action!=="NONE")??"NONE";
  const expectedHoldMutations=holdActions.filter(action=>action===holdAction).length;
+ if(booking.status==="REQUESTED"&&next==="CONFIRMED"){
+  await tx.execute("INSERT INTO booking_location_snapshots(booking_item_id,booking_id,service_id,source_location_id,name,area,latitude,longitude) SELECT bi.id,bi.booking_id,bi.service_id,g.id,g.name,g.area,g.latitude,g.longitude FROM booking_items bi JOIN geo_locations g ON g.service_id=bi.service_id AND g.kind='SERVICE_MEETING_POINT' AND g.verification_status='VERIFIED' WHERE bi.booking_id=$1 ON CONFLICT(booking_item_id) DO NOTHING",[input.bookingId]);
+ }
  const commissions=await tx.query<{status:CommissionLedgerStatus}>("SELECT status FROM partner_commission_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
  const commission=commissions[0];const commissionAction=commission?commissionActionForBooking(next,commission.status):"NONE";
  await tx.execute("UPDATE bookings SET status=$2 WHERE id=$1",[input.bookingId,next]);
