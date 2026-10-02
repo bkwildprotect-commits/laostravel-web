@@ -29,3 +29,13 @@ export async function reviewLocation(client:PoolClient,input:{reviewerUserId:str
  }
  await client.query("INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES($1,$2,$3,'geo_location',$4,$5::jsonb)",[randomUUID(),input.reviewerUserId,input.decision==="VERIFIED"?"LOCATION_VERIFIED":"LOCATION_REJECTED",input.locationId,JSON.stringify({decision:input.decision,expectedUpdatedAt:input.expectedUpdatedAt})]);
 }
+
+
+export async function reviewLocationAtomically(pool:Pool,input:{reviewerUserId:string;locationId:string;decision:ReviewDecision;expectedUpdatedAt:string}):Promise<void>{
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  await reviewLocation(client,input);
+  await client.query("COMMIT");
+ }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
+}
