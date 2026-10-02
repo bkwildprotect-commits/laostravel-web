@@ -64,6 +64,7 @@ describe("postgres booking lifecycle mutation",()=>{
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"i1",event:"CONFIRM"});
   expect(result).toEqual({status:"CONFIRMED"});
+  expect(execute.mock.calls.some(([sql])=>String(sql).includes("INSERT INTO booking_location_snapshots")&&String(sql).includes("VERIFIED"))).toBe(true);
   expect(execute.mock.calls.some(([sql,args])=>String(sql).includes("UPDATE inventory_holds")&&args?.[1]==="CONSUMED")).toBe(true);
  });
  it("consumes every active inventory hold for a multi-item booking",async()=>{
