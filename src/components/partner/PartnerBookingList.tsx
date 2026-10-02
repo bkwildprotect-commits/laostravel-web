@@ -6,7 +6,9 @@ type Event="CONFIRM"|"CHECK_IN"|"START_SERVICE"|"COMPLETE"|"CANCEL"|"MARK_NO_SHO
 
 function actions(status:string):{event:Event;label:string}[]{
  if(status==="REQUESTED")return[{event:"CONFIRM",label:"ยืนยันการจอง"},{event:"CANCEL",label:"ยกเลิก"}];
- if(status==="CONFIRMED")return[{event:"CHECK_IN",label:"เช็กอิน"},{event:"CANCEL",label:"ยกเลิก"},{event:"MARK_NO_SHOW",label:"ลูกค้าไม่มา"}];\n if(status==="CHECKED_IN")return[{event:"START_SERVICE",label:"เริ่มให้บริการ"},{event:"COMPLETE",label:"เสร็จสิ้น"},{event:"CANCEL",label:"ยกเลิก"}];\n if(status==="IN_SERVICE")return[{event:"COMPLETE",label:"เสร็จสิ้น"}];
+ if(status==="CONFIRMED")return[{event:"CHECK_IN",label:"เช็กอิน"},{event:"CANCEL",label:"ยกเลิก"},{event:"MARK_NO_SHOW",label:"ลูกค้าไม่มา"}];
+ if(status==="CHECKED_IN")return[{event:"START_SERVICE",label:"เริ่มให้บริการ"},{event:"COMPLETE",label:"เสร็จสิ้น"},{event:"CANCEL",label:"ยกเลิก"}];
+ if(status==="IN_SERVICE")return[{event:"COMPLETE",label:"เสร็จสิ้น"}];
  return[];
 }
 
