@@ -12,7 +12,7 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(execute.mock.calls[1][0]).toContain("status='CONSUMED'");
  });
  it("releases reserved trial on no-show",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"CONFIRMED"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"b2",event:"MARK_NO_SHOW"});
   expect(result).toEqual({status:"NO_SHOW"});
@@ -40,7 +40,7 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(mutation).not.toContain("voided_at");
  });
  it("does not automatically mutate commission on no-show",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"CONFIRMED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c3",event:"MARK_NO_SHOW"});
   expect(execute.mock.calls.some(([sql])=>String(sql).includes("commission_ledger"))).toBe(false);
