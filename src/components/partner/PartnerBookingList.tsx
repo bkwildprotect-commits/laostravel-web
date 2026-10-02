@@ -14,7 +14,7 @@ export function PartnerBookingList({partnerId}:{partnerId:string}){
  const [rows,setRows]=useState<Booking[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [updating,setUpdating]=useState<string|null>(null);
  const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);setError("");
   try{const r=await fetch(`/api/v1/partners/${encodeURIComponent(partnerId)}/bookings?limit=50`,{signal,credentials:"same-origin"});const body=await r.json();if(!r.ok||body.error)throw new Error("BOOKINGS_UNAVAILABLE");setRows(body.data as Booking[])}
-  catch(e:any){if(e?.name!=="AbortError")setError("ไม่สามารถโหลดรายการจองได้ในขณะนี้")}finally{setLoading(false)}
+  catch(e:unknown){if(!(e instanceof Error && e.name==="AbortError"))setError("ไม่สามารถโหลดรายการจองได้ในขณะนี้")}finally{setLoading(false)}
  },[partnerId]);
  useEffect(()=>{const controller=new AbortController();void load(controller.signal);return()=>controller.abort()},[load]);
  async function update(bookingId:string,event:Event){setUpdating(bookingId);setError("");
