@@ -9,7 +9,7 @@ describe("geo location policy",()=>{
  });
  it("never exposes private or unverified pins",()=>{
   expect(canExposeLocation({visibility:"PRIVATE",verificationStatus:"VERIFIED",hasBookingAccess:true})).toBe(false);
-  expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"PENDING",hasBookingAccess:true})).toBe(false);
+  expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"REQUESTED",hasBookingAccess:true})).toBe(false);
  });
  it("allows public verified locations and gates booking-only locations",()=>{
   expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"VERIFIED",hasBookingAccess:false})).toBe(true);
@@ -17,7 +17,7 @@ describe("geo location policy",()=>{
   expect(canExposeLocation({visibility:"BOOKING_ONLY",verificationStatus:"VERIFIED",hasBookingAccess:true})).toBe(true);
  });
  it("allows booking-only navigation only for confirmed or completed bookings",()=>{
-  expect(hasBookingNavigationAccess("PENDING")).toBe(false);
+  expect(hasBookingNavigationAccess("REQUESTED")).toBe(false);
   expect(hasBookingNavigationAccess("CONFIRMED")).toBe(true);
   expect(hasBookingNavigationAccess("COMPLETED")).toBe(true);
   expect(hasBookingNavigationAccess("CANCELLED")).toBe(false);
