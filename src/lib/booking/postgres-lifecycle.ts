@@ -5,7 +5,7 @@ import {commissionActionForBooking,type CommissionLedgerStatus} from "../commiss
 import {inventoryHoldActionForBooking,type InventoryHoldStatus} from "./inventory-hold-lifecycle";
 
 export class BookingLifecycleMutationError extends Error{
- constructor(public code:"BOOKING_NOT_FOUND"|"TRIAL_LEDGER_STATE_CHANGED"|"COMMISSION_LEDGER_STATE_CHANGED"|"INVENTORY_HOLD_STATE_CHANGED"){super(code)}
+ constructor(public code:"BOOKING_NOT_FOUND"|"TRIAL_LEDGER_STATE_CHANGED"|"COMMISSION_LEDGER_STATE_CHANGED"|"INVENTORY_HOLD_STATE_CHANGED"|"MEETING_POINT_NOT_VERIFIED"){super(code)}
 }
 
 export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookingId:string;event:BookingEvent}):Promise<{status:BookingStatus}>{
@@ -19,6 +19,8 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
  const holdAction=holdActions.find(action=>action!=="NONE")??"NONE";
  const expectedHoldMutations=holdActions.filter(action=>action===holdAction).length;
  if(booking.status==="REQUESTED"&&next==="CONFIRMED"){
+  const meetingPoints=await tx.query<{booking_item_id:string;verification_status:string}>("SELECT bi.id AS booking_item_id,g.verification_status FROM booking_items bi JOIN geo_locations g ON g.service_id=bi.service_id AND g.kind='SERVICE_MEETING_POINT' WHERE bi.booking_id=$1 FOR SHARE OF g",[input.bookingId]);
+  if(meetingPoints.some(point=>point.verification_status!=="VERIFIED"))throw new BookingLifecycleMutationError("MEETING_POINT_NOT_VERIFIED");
   await tx.execute("INSERT INTO booking_location_snapshots(booking_item_id,booking_id,service_id,source_location_id,name,area,latitude,longitude) SELECT bi.id,bi.booking_id,bi.service_id,g.id,g.name,g.area,g.latitude,g.longitude FROM booking_items bi JOIN geo_locations g ON g.service_id=bi.service_id AND g.kind='SERVICE_MEETING_POINT' AND g.verification_status='VERIFIED' WHERE bi.booking_id=$1 ON CONFLICT(booking_item_id) DO NOTHING",[input.bookingId]);
  }
  const commissions=await tx.query<{status:CommissionLedgerStatus}>("SELECT status FROM partner_commission_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
