@@ -6,7 +6,7 @@ import {mutatePartnerBookingLifecycle,PartnerBookingMutationAccessDeniedError} f
 import {BookingLifecycleMutationError} from "../../../../../../../../lib/booking/postgres-lifecycle";
 import type {BookingEvent} from "../../../../../../../../lib/booking/lifecycle";
 
-const events=new Set<BookingEvent>(["CONFIRM","COMPLETE","CANCEL","EXPIRE","MARK_NO_SHOW"]);
+const events=new Set<BookingEvent>(["CONFIRM","CHECK_IN","START_SERVICE","COMPLETE","CANCEL","EXPIRE","MARK_NO_SHOW"]);
 
 export async function PATCH(request:Request,{params}:{params:Promise<{partnerId:string;bookingId:string}>}){
  let user;
