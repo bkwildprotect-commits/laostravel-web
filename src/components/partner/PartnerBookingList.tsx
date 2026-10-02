@@ -2,11 +2,11 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Booking={bookingId:string;bookingRef:string;status:string;paymentStatus:string;createdAt:string;serviceId:string;quantity:number;currency:string;customerTotal:string;commercialPath:"TRIAL_FREE"|"COMMISSIONABLE"};
-type Event="CONFIRM"|"COMPLETE"|"CANCEL"|"MARK_NO_SHOW";
+type Event="CONFIRM"|"CHECK_IN"|"START_SERVICE"|"COMPLETE"|"CANCEL"|"MARK_NO_SHOW";
 
 function actions(status:string):{event:Event;label:string}[]{
- if(status==="PENDING")return[{event:"CONFIRM",label:"ยืนยันการจอง"},{event:"CANCEL",label:"ยกเลิก"}];
- if(status==="CONFIRMED")return[{event:"COMPLETE",label:"เสร็จสิ้น"},{event:"CANCEL",label:"ยกเลิก"},{event:"MARK_NO_SHOW",label:"ลูกค้าไม่มา"}];
+ if(status==="REQUESTED")return[{event:"CONFIRM",label:"ยืนยันการจอง"},{event:"CANCEL",label:"ยกเลิก"}];
+ if(status==="CONFIRMED")return[{event:"CHECK_IN",label:"เช็กอิน"},{event:"CANCEL",label:"ยกเลิก"},{event:"MARK_NO_SHOW",label:"ลูกค้าไม่มา"}];\n if(status==="CHECKED_IN")return[{event:"START_SERVICE",label:"เริ่มให้บริการ"},{event:"COMPLETE",label:"เสร็จสิ้น"},{event:"CANCEL",label:"ยกเลิก"}];\n if(status==="IN_SERVICE")return[{event:"COMPLETE",label:"เสร็จสิ้น"}];
  return[];
 }
 
