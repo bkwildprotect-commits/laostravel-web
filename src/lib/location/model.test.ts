@@ -9,7 +9,7 @@ describe("geo location policy",()=>{
  });
  it("never exposes private or unverified pins",()=>{
   expect(canExposeLocation({visibility:"PRIVATE",verificationStatus:"VERIFIED",hasBookingAccess:true})).toBe(false);
-  expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"REQUESTED",hasBookingAccess:true})).toBe(false);
+  expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"PENDING",hasBookingAccess:true})).toBe(false);
  });
  it("allows public verified locations and gates booking-only locations",()=>{
   expect(canExposeLocation({visibility:"PUBLIC",verificationStatus:"VERIFIED",hasBookingAccess:false})).toBe(true);
