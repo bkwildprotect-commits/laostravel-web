@@ -4,7 +4,7 @@ export class PartnerAccessDeniedError extends Error{constructor(){super("PARTNER
 
 export type PartnerBookingRow={
  bookingId:string;bookingRef:string;status:string;paymentStatus:string;createdAt:string;
- serviceId:string;quantity:number;currency:string;customerTotal:string;commercialPath:"TRIAL_FREE"|"COMMISSIONABLE";
+ serviceId:string;quantity:number;currency:string;customerTotal:string;commercialPath:"LAUNCH_FREE"|"COMMISSIONABLE";
 };
 
 export async function listPartnerBookings(pool:Pool,input:{userId:string;partnerId:string;limit?:number}):Promise<PartnerBookingRow[]>{
@@ -13,7 +13,7 @@ export async function listPartnerBookings(pool:Pool,input:{userId:string;partner
  if(!membership.rows[0]?.allowed)throw new PartnerAccessDeniedError();
  const result=await pool.query<{
   booking_id:string;booking_ref:string;status:string;payment_status:string;created_at:Date;
-  service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:"TRIAL_FREE"|"COMMISSIONABLE";
+  service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:"LAUNCH_FREE"|"COMMISSIONABLE";
  }>(`
   SELECT b.id AS booking_id,b.booking_ref,b.status,b.payment_status,b.created_at,
          bi.service_id,bi.quantity,ps.currency,ps.customer_total,pc.path AS commercial_path
