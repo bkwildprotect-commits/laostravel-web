@@ -1,5 +1,5 @@
 import type {TransactionContext} from "@/lib/infrastructure/transaction";
-export type BookingPriceSnapshot={currency:string;baseAmount:string;feesAmount:string;couponAmount:string;pointsBenefitAmount:string;customerTotal:string;priceQuoteId:string};
+export type BookingPriceSnapshot={currency:string;baseAmount:string;feesAmount:string;partnerDiscountAmount:string;couponAmount:string;pointsBenefitAmount:string;customerTotal:string;priceQuoteId:string};
 export type CommercialAllocation={path:"LAUNCH_FREE";freeEndsAt:string}|{path:"COMMISSIONABLE";ruleVersion:string};
 export interface BookingTransactionRepository{
  claimIdempotency(tx:TransactionContext,userId:string,key:string,requestHash:string):Promise<"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS">;
