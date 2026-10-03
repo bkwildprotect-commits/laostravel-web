@@ -27,7 +27,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   const commercial=await repo.allocateCommercialPath(tx,{partnerId:partnerId});
   const booking=await repo.createBooking(tx,{userId:input.userId,partnerId:partnerId,serviceId:serviceId,availabilityId:availabilityId,quantity:quantity,commercial,price:verified.price});
   await repo.consumePriceQuote(tx,{priceQuoteId:verified.price.priceQuoteId,bookingId:booking.bookingId});
-  await repo.persistCommercialPath(tx,{bookingId:booking.bookingId,partnerId:partnerId,commercial});
+  await repo.persistCommercialPath(tx,{bookingId:booking.bookingId,partnerId:partnerId,commercial,price:verified.price});
   await repo.attachInventoryToBooking(tx,{bookingId:booking.bookingId,availabilityId:availabilityId,quantity:quantity,holdMinutes:holdPolicy.holdMinutes});
   await repo.writeAudit(tx,{actorUserId:input.userId,action:"BOOKING_CREATED",targetType:"booking",targetId:booking.bookingId});
   await repo.completeIdempotency(tx,{userId:input.userId,key:input.idempotencyKey,bookingId:booking.bookingId});
