@@ -4,6 +4,7 @@ export type CommercialAllocation={path:"LAUNCH_FREE";freeEndsAt:string}|{path:"C
 export interface BookingTransactionRepository{
  claimIdempotency(tx:TransactionContext,userId:string,key:string,requestHash:string):Promise<"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS">;
  resolveBookingOwnership(tx:TransactionContext,input:{serviceId:string;availabilityId:string}):Promise<{partnerId:string}>;
+ assertCommercialServiceArea(tx:TransactionContext,serviceId:string):Promise<void>;
  getCompletedIdempotentBooking(tx:TransactionContext,userId:string,key:string):Promise<{bookingId:string;bookingRef:string}|null>;
  lockAvailability(tx:TransactionContext,availabilityId:string):Promise<{remaining:number|null}>;
  reserveInventory(tx:TransactionContext,availabilityId:string,quantity:number):Promise<{remaining:number|null;version:number}>;

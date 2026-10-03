@@ -20,6 +20,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   if(verified.quote.serviceId!==input.bookingRequest.serviceId||verified.quote.quantity!==input.bookingRequest.quantity)throw new BookingTransactionError("PRICE_QUOTE_MISMATCH","Authoritative quote does not match booking input",409);
   const availabilityId=verified.quote.availabilityId;const serviceId=verified.quote.serviceId;const quantity=verified.quote.quantity;
   const ownership=await repo.resolveBookingOwnership(tx,{serviceId,availabilityId});const partnerId=ownership.partnerId;
+  await repo.assertCommercialServiceArea(tx,serviceId);
   const inventory=await repo.lockAvailability(tx,availabilityId);
   assertReservableInventory(inventory,quantity);
   assertInventoryReservation(await repo.reserveInventory(tx,availabilityId,quantity));
