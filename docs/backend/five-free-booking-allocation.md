@@ -1,11 +1,14 @@
-# Five free booking allocation
+# Legacy five-booking trial — superseded
 
-The PostgreSQL repository now determines the commercial path while the Partner row is locked in the same SERIALIZABLE transaction.
+This document is retained only as migration/history context.
 
-Occupied trial slots are only RESERVED or CONSUMED. RELEASED rows do not occupy an ordinal, so CANCELLED, EXPIRED and NO_SHOW trial bookings can return their reserved slot according to the lifecycle policy.
+The five-free-booking allocation is **not** the current LaosTravel commercial policy and must not be used for new Website, Android or iOS bookings.
 
-Allocation selects the lowest free ordinal from 1 through 5. When all five are occupied, the next booking is COMMISSIONABLE.
+Current authoritative policy is documented in `shared-launch-commercial-contract.md`:
+- each commercially activated Partner receives six calendar months of LAUNCH_FREE;
+- commission is 0% during that individual period;
+- booking count does not consume the entitlement;
+- expiry does not silently activate commission;
+- PAY_AT_PARTNER is the launch payment mode.
 
-The commission percentage is deliberately not hard-coded. The repository returns ruleVersion UNRESOLVED as a fail-closed marker until an approved versioned commission rule is supplied. Booking/commission persistence must reject this marker rather than invent a rate.
-
-The allocation decision alone does not persist a ledger row yet; booking persistence must atomically insert partner_booking_commercial_paths and the corresponding trial or commission ledger entry before production enablement.
+Legacy `partner_trial_ledger`, `TRIAL_FREE` rows or historical migrations may remain for audit/history but are not a source of new commercial eligibility.
