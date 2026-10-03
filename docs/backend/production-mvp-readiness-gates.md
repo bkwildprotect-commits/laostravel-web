@@ -8,8 +8,10 @@ LaosTravel should not recruit public customers until these gates pass.
 - Server quote and price verification.
 - Inventory concurrency tests pass.
 - Idempotency replay returns the original booking.
-- Partner five-free-booking trial is persisted transactionally.
-- Commission rules are versioned and server-authoritative.
+- Per-Partner six-calendar-month launch-free period is persisted transactionally and starts only at approved commercial activation.
+- Launch bookings use PAY_AT_PARTNER; LaosTravel does not hold customer funds in this mode.
+- Partner list price and Partner-funded discount are server-authoritative and snapshotted at booking.
+- Commission rules are versioned and server-authoritative, but free-period expiry never activates commission without separately accepted commercial terms.
 
 ## Partner/Admin
 - Partner verification workflow is operational.
