@@ -11,8 +11,8 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
   const occupied=await tx.query<{trial_ordinal:number}>("SELECT trial_ordinal FROM partner_trial_ledger WHERE partner_id=$1 AND status IN ('RESERVED','CONSUMED') AND trial_ordinal IS NOT NULL ORDER BY trial_ordinal",[input.partnerId]);
   const used=new Set(occupied.map(x=>x.trial_ordinal));let ordinal:number|undefined;for(let i=1;i<=5;i++){if(!used.has(i)){ordinal=i;break}}
   if(ordinal!==undefined)return {path:"TRIAL_FREE",ordinal};
-  // Exact commission rate is intentionally not selected here; persistence requires an approved versioned rule.
-  return {path:"COMMISSIONABLE",ruleVersion:"UNRESOLVED"};
+  const rules=await tx.query<{version:string}>("SELECT version FROM commission_rules WHERE status='ACTIVE' AND service_category IS NULL AND effective_from<=now() AND (effective_until IS NULL OR effective_until>now()) ORDER BY effective_from DESC LIMIT 1");
+  return {path:"COMMISSIONABLE",ruleVersion:rules[0]?.version??"UNRESOLVED"};
  }
  async createBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["createBooking"]>[1]){
   if(input.commercial.path==="COMMISSIONABLE"&&input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
