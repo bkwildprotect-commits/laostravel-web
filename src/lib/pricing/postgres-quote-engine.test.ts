@@ -1,0 +1,6 @@
+import {describe,it,expect,vi} from "vitest";import {createAuthoritativeQuote,QuoteUnavailableError} from "./postgres-quote-engine";
+function pool(availability:unknown[],offers:unknown[]){const query=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:availability}).mockResolvedValueOnce({rows:offers}).mockResolvedValueOnce({}).mockResolvedValueOnce({});return {connect:vi.fn().mockResolvedValue({query,release:vi.fn()})}}
+describe("authoritative Partner quote engine",()=>{
+ it("multiplies Partner list price and discount by quantity in LAK",async()=>{const p=pool([{id:"a1",remaining:5,version:"1"}],[{unit_amount:"100000",partner_discount_amount:"10000"}]);const q=await createAuthoritativeQuote(p as never,{serviceId:"s1",date:"2030-01-01",quantity:2});expect(q).toMatchObject({currency:"LAK",baseAmount:"200000",partnerDiscountAmount:"20000",customerTotal:"180000"});});
+ it("fails closed when Partner has no active price offer",async()=>{const p=pool([{id:"a1",remaining:5,version:"1"}],[]);await expect(createAuthoritativeQuote(p as never,{serviceId:"s1",date:"2030-01-01",quantity:1})).rejects.toBeInstanceOf(QuoteUnavailableError)});
+});
