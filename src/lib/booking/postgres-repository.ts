@@ -28,7 +28,7 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
    if(!input.commercial.ruleVersion||input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
    const rules=await tx.query<{rate_bps:number}>("SELECT rate_bps FROM commission_rules WHERE version=$1 AND status='ACTIVE' AND effective_from<=now() AND (effective_until IS NULL OR effective_until>now()) FOR SHARE",[input.commercial.ruleVersion]);
    const rule=rules[0];if(!rule)throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
-   const basis=BigInt(input.price.baseAmount);const commission=basis*BigInt(rule.rate_bps)/10000n;const partner=basis-commission;
+   const basis=BigInt(input.price.baseAmount);const commission=basis*BigInt(rule.rate_bps)/BigInt(10000);const partner=basis-commission;
    await tx.execute("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'COMMISSIONABLE')",[input.bookingId,input.partnerId]);
    await tx.execute("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,commercial_path,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version) VALUES(gen_random_uuid(),$1,$2,'COMMISSIONABLE','PENDING',$3,$4::bigint,$5,$6::bigint,$7::bigint,$8)",[input.partnerId,input.bookingId,input.price.currency,input.price.baseAmount,rule.rate_bps,commission.toString(),partner.toString(),input.commercial.ruleVersion]);
    await tx.execute("UPDATE price_snapshots SET commission_rule_version=$2,commission_amount=$3::bigint,partner_amount=$4::bigint WHERE booking_id=$1",[input.bookingId,input.commercial.ruleVersion,commission.toString(),partner.toString()]);
