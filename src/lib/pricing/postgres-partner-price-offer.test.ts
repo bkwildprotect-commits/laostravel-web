@@ -1,0 +1,6 @@
+import {describe,it,expect,vi} from "vitest";import {replaceActiveServicePriceOffer,PriceOfferValidationError} from "./postgres-partner-price-offer";
+function pool(allowed=true){const query=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{allowed}]}).mockResolvedValue({});return {connect:vi.fn().mockResolvedValue({query,release:vi.fn()})}}
+describe("Partner service pricing",()=>{
+ it("retires old active price and audits the new LAK offer",async()=>{const p=pool();const r=await replaceActiveServicePriceOffer(p as never,{userId:"u",partnerId:"p",serviceId:"s",unitAmount:"100000",partnerDiscountAmount:"10000"});expect(r).toMatchObject({currency:"LAK",unitAmount:"100000",partnerDiscountAmount:"10000",status:"ACTIVE"})});
+ it("rejects a discount larger than the Partner unit price",async()=>{await expect(replaceActiveServicePriceOffer(pool() as never,{userId:"u",partnerId:"p",serviceId:"s",unitAmount:"100",partnerDiscountAmount:"101"})).rejects.toBeInstanceOf(PriceOfferValidationError)});
+});
