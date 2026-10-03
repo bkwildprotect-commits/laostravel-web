@@ -24,8 +24,8 @@ describe("partner booking reader",()=>{
   expect(query.mock.calls[1][1][2]).toBe(100);
  });
  it("maps only partner-facing booking fields",async()=>{
-  const query=vi.fn().mockResolvedValueOnce({rows:[{allowed:true}]}).mockResolvedValueOnce({rows:[{booking_id:"b1",booking_ref:"LT-1",status:"PENDING",payment_status:"PENDING",created_at:new Date("2030-01-01T00:00:00Z"),service_id:"s1",quantity:2,currency:"LAK",customer_total:"200000",commercial_path:"TRIAL_FREE"}]});
+  const query=vi.fn().mockResolvedValueOnce({rows:[{allowed:true}]}).mockResolvedValueOnce({rows:[{booking_id:"b1",booking_ref:"LT-1",status:"UNPAID",payment_status:"UNPAID",created_at:new Date("2030-01-01T00:00:00Z"),service_id:"s1",quantity:2,currency:"LAK",customer_total:"200000",commercial_path:"LAUNCH_FREE"}]});
   const rows=await listPartnerBookings(asPool(query),{userId:"u",partnerId:"p"});
-  expect(rows).toEqual([{bookingId:"b1",bookingRef:"LT-1",status:"PENDING",paymentStatus:"PENDING",createdAt:"2030-01-01T00:00:00.000Z",serviceId:"s1",quantity:2,currency:"LAK",customerTotal:"200000",commercialPath:"TRIAL_FREE"}]);
+  expect(rows).toEqual([{bookingId:"b1",bookingRef:"LT-1",status:"UNPAID",paymentStatus:"UNPAID",createdAt:"2030-01-01T00:00:00.000Z",serviceId:"s1",quantity:2,currency:"LAK",customerTotal:"200000",commercialPath:"LAUNCH_FREE"}]);
  });
 });
