@@ -11,7 +11,7 @@ export interface BookingTransactionRepository{
  allocateCommercialPath(tx:TransactionContext,input:{partnerId:string}):Promise<CommercialAllocation>;
  createBooking(tx:TransactionContext,input:{userId:string;partnerId:string;serviceId:string;availabilityId:string;quantity:number;commercial:CommercialAllocation;price:BookingPriceSnapshot}):Promise<{bookingId:string;bookingRef:string}>;
  consumePriceQuote(tx:TransactionContext,input:{priceQuoteId:string;bookingId:string}):Promise<void>;
- persistCommercialPath(tx:TransactionContext,input:{bookingId:string;partnerId:string;commercial:CommercialAllocation}):Promise<void>;
+ persistCommercialPath(tx:TransactionContext,input:{bookingId:string;partnerId:string;commercial:CommercialAllocation;price:BookingPriceSnapshot}):Promise<void>;
  attachInventoryToBooking(tx:TransactionContext,input:{bookingId:string;availabilityId:string;quantity:number;holdMinutes:number}):Promise<void>;
  completeIdempotency(tx:TransactionContext,input:{userId:string;key:string;bookingId:string}):Promise<void>;
  writeAudit(tx:TransactionContext,input:{actorUserId:string;action:string;targetType:string;targetId:string}):Promise<void>;
