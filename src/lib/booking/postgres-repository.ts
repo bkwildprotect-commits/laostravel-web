@@ -5,12 +5,13 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
  async getCompletedIdempotentBooking(tx:TransactionContext,userId:string,key:string){const r=await tx.query<{booking_id:string;booking_ref:string}>("SELECT b.id booking_id,b.booking_ref FROM booking_idempotency i JOIN bookings b ON b.id=i.booking_id WHERE i.user_id=$1 AND i.idempotency_key=$2 AND i.status='COMPLETED'",[userId,key]);return r[0]?{bookingId:r[0].booking_id,bookingRef:r[0].booking_ref}:null}
  async lockAvailability(tx:TransactionContext,id:string){const r=await tx.query<{remaining:number|null}>("SELECT remaining FROM availability WHERE id=$1 FOR UPDATE",[id]);if(!r[0])throw new Error("AVAILABILITY_NOT_FOUND");return r[0]}
  async reserveInventory(tx:TransactionContext,id:string,quantity:number){const current=await tx.query<{remaining:number|null;version:number}>("SELECT remaining,version FROM availability WHERE id=$1",[id]);if(!current[0])return null as never;if(current[0].remaining===null)return {remaining:null,version:current[0].version};const r=await tx.query<{remaining:number;version:number}>("UPDATE availability SET remaining=remaining-$2,version=version+1 WHERE id=$1 AND remaining >= $2 RETURNING remaining,version",[id,quantity]);return r[0]??null as never}
- async lockPartnerTrial(tx:TransactionContext,partnerId:string){await tx.query("SELECT id FROM partners WHERE id=$1 FOR UPDATE",[partnerId])}
+ async lockPartnerCommercialTerms(tx:TransactionContext,partnerId:string){await tx.query("SELECT id FROM partners WHERE id=$1 FOR UPDATE",[partnerId])}
  async allocateCommercialPath(tx:TransactionContext,input:{partnerId:string}):Promise<CommercialAllocation>{
-  // Partner row is already locked by the orchestrator, serializing trial allocation per Partner.
-  const occupied=await tx.query<{trial_ordinal:number}>("SELECT trial_ordinal FROM partner_trial_ledger WHERE partner_id=$1 AND status IN ('RESERVED','CONSUMED') AND trial_ordinal IS NOT NULL ORDER BY trial_ordinal",[input.partnerId]);
-  const used=new Set(occupied.map(x=>x.trial_ordinal));let ordinal:number|undefined;for(let i=1;i<=5;i++){if(!used.has(i)){ordinal=i;break}}
-  if(ordinal!==undefined)return {path:"TRIAL_FREE",ordinal};
+  const terms=await tx.query<{model:string;free_ends_at:string|null}>("SELECT model,free_ends_at FROM partner_commercial_terms WHERE partner_id=$1 FOR UPDATE",[input.partnerId]);
+  const term=terms[0];
+  if(term?.model==="LAUNCH_FREE"&&term.free_ends_at&&new Date(term.free_ends_at).getTime()>Date.now())return {path:"LAUNCH_FREE",freeEndsAt:term.free_ends_at};
+  // Expiry never silently activates commission. A separately accepted COMMISSION term is required.
+  if(term?.model!=="COMMISSION")throw new Error("PARTNER_COMMERCIAL_TERMS_REQUIRED");
   const rules=await tx.query<{version:string}>("SELECT version FROM commission_rules WHERE status='ACTIVE' AND service_category IS NULL AND effective_from<=now() AND (effective_until IS NULL OR effective_until>now()) ORDER BY effective_from DESC LIMIT 1");
   return {path:"COMMISSIONABLE",ruleVersion:rules[0]?.version??"UNRESOLVED"};
  }
@@ -34,7 +35,7 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
    await tx.execute("UPDATE price_snapshots SET commission_rule_version=$2,commission_amount=$3::bigint,partner_amount=$4::bigint WHERE booking_id=$1",[input.bookingId,input.commercial.ruleVersion,commission.toString(),partner.toString()]);
    return;
   }
-  await tx.execute("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'TRIAL_FREE')",[input.bookingId,input.partnerId]);await tx.execute("INSERT INTO partner_trial_ledger(id,partner_id,booking_id,commercial_path,trial_ordinal,status) VALUES(gen_random_uuid(),$1,$2,'TRIAL_FREE',$3,'RESERVED')",[input.partnerId,input.bookingId,input.commercial.ordinal])
+  await tx.execute("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'LAUNCH_FREE')",[input.bookingId,input.partnerId])
  }
  async attachInventoryToBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["attachInventoryToBooking"]>[1]){await tx.execute("INSERT INTO inventory_holds(id,service_id,availability_id,booking_id,quantity,status,expires_at) SELECT gen_random_uuid(),service_id,$2,$1,$3,'ACTIVE',now()+($4::text || ' minutes')::interval FROM availability WHERE id=$2",[input.bookingId,input.availabilityId,input.quantity,input.holdMinutes])}
  async completeIdempotency(tx:TransactionContext,input:{userId:string;key:string;bookingId:string}){await tx.execute("UPDATE booking_idempotency SET booking_id=$3,status='COMPLETED' WHERE user_id=$1 AND idempotency_key=$2 AND status='PROCESSING'",[input.userId,input.key,input.bookingId])}
