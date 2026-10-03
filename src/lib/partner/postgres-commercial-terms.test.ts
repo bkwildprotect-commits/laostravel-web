@@ -1,0 +1,5 @@
+import {describe,it,expect,vi} from "vitest";import {activatePartnerLaunchFreePeriod} from "./postgres-commercial-terms";
+describe("partner six-month launch free activation",()=>{
+ it("starts only for an approved active partner and uses six calendar months",async()=>{const tx={query:vi.fn().mockResolvedValueOnce([{verification_status:"APPROVED",business_status:"ACTIVE"}]).mockResolvedValueOnce([]),execute:vi.fn().mockResolvedValue({rowCount:1})};await activatePartnerLaunchFreePeriod(tx as never,{partnerId:"p1",actorUserId:"admin"});expect(tx.execute.mock.calls[0][0]).toContain("interval '6 months'");expect(tx.execute.mock.calls[1][0]).toContain("PARTNER_LAUNCH_FREE_ACTIVATED")});
+ it("does not start while verification is incomplete",async()=>{const tx={query:vi.fn().mockResolvedValue([{verification_status:"DOCUMENT_REVIEW",business_status:"DRAFT"}]),execute:vi.fn()};await expect(activatePartnerLaunchFreePeriod(tx as never,{partnerId:"p1",actorUserId:"admin"})).rejects.toThrow("PARTNER_NOT_ELIGIBLE_FOR_ACTIVATION");expect(tx.execute).not.toHaveBeenCalled()});
+});

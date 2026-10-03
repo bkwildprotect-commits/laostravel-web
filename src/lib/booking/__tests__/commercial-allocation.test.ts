@@ -1,8 +1,7 @@
 import {describe,it,expect,vi} from "vitest";import {PostgresBookingRepository} from "../postgres-repository";
-function tx(ordinals:number[],rules:{version:string}[]=[]){return {query:vi.fn().mockResolvedValueOnce(ordinals.map(trial_ordinal=>({trial_ordinal}))).mockResolvedValueOnce(rules),execute:vi.fn()}}
+function tx(terms:unknown[],rules:unknown[]=[]){return {query:vi.fn().mockResolvedValueOnce(terms).mockResolvedValueOnce(rules),execute:vi.fn()}}
 describe("PostgreSQL commercial allocation",()=>{
- it("allocates first free ordinal",async()=>{const r=new PostgresBookingRepository();await expect(r.allocateCommercialPath(tx([1,2,4]) as never,{partnerId:"p"})).resolves.toEqual({path:"TRIAL_FREE",ordinal:3})});
- it("allocates fifth slot when 1-4 occupied",async()=>{const r=new PostgresBookingRepository();await expect(r.allocateCommercialPath(tx([1,2,3,4]) as never,{partnerId:"p"})).resolves.toEqual({path:"TRIAL_FREE",ordinal:5})});
- it("fails closed after five occupied when no approved commission rule exists",async()=>{const r=new PostgresBookingRepository();await expect(r.allocateCommercialPath(tx([1,2,3,4,5]) as never,{partnerId:"p"})).resolves.toEqual({path:"COMMISSIONABLE",ruleVersion:"UNRESOLVED"})});
- it("snapshots the active approved rule version after the free trial",async()=>{const r=new PostgresBookingRepository();await expect(r.allocateCommercialPath(tx([1,2,3,4,5],[{version:"LAOS-2026-01"}]) as never,{partnerId:"p"})).resolves.toEqual({path:"COMMISSIONABLE",ruleVersion:"LAOS-2026-01"})});
+ it("uses each partner's active six-month launch-free window",async()=>{const r=new PostgresBookingRepository();const end=new Date(Date.now()+86400000).toISOString();await expect(r.allocateCommercialPath(tx([{model:"LAUNCH_FREE",free_ends_at:end}]) as never,{partnerId:"p"})).resolves.toEqual({path:"LAUNCH_FREE",freeEndsAt:end})});
+ it("does not silently charge commission when free period expires",async()=>{const r=new PostgresBookingRepository();const end=new Date(Date.now()-86400000).toISOString();await expect(r.allocateCommercialPath(tx([{model:"LAUNCH_FREE",free_ends_at:end}]) as never,{partnerId:"p"})).rejects.toThrow("PARTNER_COMMERCIAL_TERMS_REQUIRED")});
+ it("requires separately accepted commission terms and an active rule",async()=>{const r=new PostgresBookingRepository();await expect(r.allocateCommercialPath(tx([{model:"COMMISSION"}],[{version:"R1"}]) as never,{partnerId:"p"})).resolves.toEqual({path:"COMMISSIONABLE",ruleVersion:"R1"})});
 });
