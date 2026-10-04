@@ -1,5 +1,6 @@
 import type {CreateBookingRequest} from "./contracts";
 const email=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function validateCreateBooking(input:unknown):{ok:true;value:CreateBookingRequest}|{ok:false;errors:string[]}{
  const e:string[]=[]; if(!input||typeof input!=="object")return {ok:false,errors:["Invalid request body"]};
  const x=input as Partial<CreateBookingRequest>;
@@ -11,12 +12,14 @@ export function validateCreateBooking(input:unknown):{ok:true;value:CreateBookin
  if(!Number.isInteger(x.quantity)||Number(x.quantity)<1||Number(x.quantity)>100)e.push("quantity must be an integer from 1 to 100");
  if(!x.traveller?.name?.trim())e.push("traveller.name is required");
  if(!x.traveller?.email||!email.test(x.traveller.email))e.push("traveller.email is invalid");
+ if(x.designatedStopId!==undefined&&(typeof x.designatedStopId!=="string"||!uuid.test(x.designatedStopId.trim())))e.push("designatedStopId must be a UUID when provided");
  if(x.couponCode!==undefined&&(typeof x.couponCode!=="string"||!x.couponCode.trim()||x.couponCode.trim().length>64))e.push("couponCode must be 1-64 characters when provided");
  if(x.pointsToRedeem!==undefined&&(!Number.isSafeInteger(x.pointsToRedeem)||Number(x.pointsToRedeem)<0))e.push("pointsToRedeem must be a non-negative safe integer");
  if(!x.idempotencyKey||typeof x.idempotencyKey!=="string"||x.idempotencyKey.length<8||x.idempotencyKey.length>128)e.push("idempotencyKey must be 8-128 characters");
  if(e.length)return {ok:false,errors:e};
  const value:CreateBookingRequest={serviceId:x.serviceId!,date:x.date!,availabilityToken:x.availabilityToken!,priceQuoteId:x.priceQuoteId!,quantity:x.quantity!,traveller:{name:x.traveller!.name,email:x.traveller!.email},idempotencyKey:x.idempotencyKey!};
  if(x.optionId!==undefined)value.optionId=x.optionId;
+ if(x.designatedStopId!==undefined)value.designatedStopId=x.designatedStopId.trim();
  if(x.couponCode!==undefined)value.couponCode=x.couponCode;
  if(x.pointsToRedeem!==undefined)value.pointsToRedeem=x.pointsToRedeem;
  return {ok:true,value};
