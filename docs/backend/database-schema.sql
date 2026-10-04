@@ -1,3 +1,8 @@
+-- BOOTSTRAP BASELINE ONLY. This is the historical base consumed before numeric migrations.
+-- Do not read its legacy defaults/trial structures as current product policy.
+-- Current state = this baseline + every db/migrations file in order.
+-- Canonical client/business contract: docs/backend/canonical-cross-platform-contract-v1.md
+
 -- LaosTravel shared PostgreSQL schema foundation (provider-neutral)
 CREATE TABLE users (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, status text NOT NULL DEFAULT 'ACTIVE', created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE user_profiles (user_id uuid PRIMARY KEY REFERENCES users(id), display_name text, locale varchar(5) NOT NULL DEFAULT 'en');
