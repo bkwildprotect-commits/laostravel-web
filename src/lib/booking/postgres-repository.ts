@@ -1,8 +1,30 @@
-import type {TransactionContext} from "@/lib/infrastructure/transaction";import type {BookingTransactionRepository,CommercialAllocation} from "./repository";
+import type {TransactionContext} from "@/lib/infrastructure/transaction";import type {BookingTransactionRepository,CommercialAllocation,TransportPickupSelection} from "./repository";import {BookingTransactionError} from "./transaction-errors";
 export class PostgresBookingRepository implements BookingTransactionRepository{
  async claimIdempotency(tx:TransactionContext,userId:string,key:string,requestHash:string){const rows=await tx.query<{request_hash:string;status:string}>("SELECT request_hash,status FROM booking_idempotency WHERE user_id=$1 AND idempotency_key=$2 FOR UPDATE",[userId,key]);if(rows[0]){if(rows[0].request_hash!==requestHash)return "CONFLICT" as const;return rows[0].status==="COMPLETED"?"REPLAY" as const:"IN_PROGRESS" as const}const r=await tx.execute("INSERT INTO booking_idempotency(id,user_id,idempotency_key,request_hash,status,expires_at) VALUES(gen_random_uuid(),$1,$2,$3,'PROCESSING',now()+interval '24 hours') ON CONFLICT(user_id,idempotency_key) DO NOTHING",[userId,key,requestHash]);return r.rowCount===1?"CLAIMED" as const:"IN_PROGRESS" as const}
  async resolveBookingOwnership(tx:TransactionContext,input:{serviceId:string;availabilityId:string}){const r=await tx.query<{partner_id:string}>("SELECT s.partner_id FROM availability a JOIN services s ON s.id=a.service_id JOIN partners p ON p.id=s.partner_id WHERE a.id=$2 AND s.id=$1 AND s.status='ACTIVE' AND p.verification_status='APPROVED' AND p.business_status='ACTIVE' FOR SHARE OF a,s,p",[input.serviceId,input.availabilityId]);if(!r[0])throw new Error("BOOKING_TARGET_NOT_FOUND");return {partnerId:r[0].partner_id}}
  async assertCommercialServiceArea(tx:TransactionContext,serviceId:string){const r=await tx.query<{allowed:boolean}>("SELECT EXISTS(SELECT 1 FROM service_area_assignments saa JOIN service_areas sa ON sa.code=saa.area_code WHERE saa.service_id=$1 AND sa.commercial_status='BOOKING_ENABLED') AS allowed",[serviceId]);if(!r[0]?.allowed)throw new Error("SERVICE_AREA_NOT_BOOKABLE")}
+ async resolveTransportPickupSelection(tx:TransactionContext,input:{serviceId:string;designatedStopId?:string}):Promise<TransportPickupSelection>{
+  const service=await tx.query<{service_kind:string|null;vehicle_type:string|null}>("SELECT s.service_kind,sc.vehicle_type FROM services s LEFT JOIN service_capability_details sc ON sc.service_id=s.id WHERE s.id=$1 FOR SHARE OF s",[input.serviceId]);
+  if(!service[0])throw new BookingTransactionError("BOOKING_TARGET_NOT_FOUND","Booking service is unavailable",404);
+  if(service[0].service_kind!=="INTERCITY_TRANSPORT"){
+   if(input.designatedStopId)throw new BookingTransactionError("DESIGNATED_STOP_NOT_ALLOWED","Designated stops apply only to intercity Bus bookings",409);
+   return {mode:"NOT_INTERCITY"};
+  }
+  if(service[0].vehicle_type==="VIP_VAN"){
+   if(input.designatedStopId)throw new BookingTransactionError("DESIGNATED_STOP_NOT_ALLOWED","VIP Van Smart Pickup is a separate operator-approved request",409);
+   return {mode:"VIP_VAN"};
+  }
+  if(service[0].vehicle_type!=="BUS")throw new BookingTransactionError("INTERCITY_VEHICLE_NOT_CONFIGURED","Intercity vehicle type is unavailable",409);
+  if(!input.designatedStopId)throw new BookingTransactionError("BUS_DESIGNATED_STOP_REQUIRED","A reviewed designated stop is required for Bus booking",409);
+  const stop=await tx.query<{id:string;area_code:string;name_lo:string;name_en:string;stop_role:"BOARDING"|"BOTH";stop_order:number;latitude:string;longitude:string}>("SELECT id,area_code,name_lo,name_en,stop_role,stop_order,latitude::text,longitude::text FROM intercity_designated_stops WHERE id=$1 AND service_id=$2 AND active=true AND verification_status='VERIFIED' AND stop_role IN ('BOARDING','BOTH') FOR SHARE",[input.designatedStopId,input.serviceId]);
+  if(!stop[0])throw new BookingTransactionError("BUS_DESIGNATED_STOP_INVALID","The selected Bus stop is not available for this service",409);
+  return {mode:"BUS_DESIGNATED_STOP",stop:{id:stop[0].id,areaCode:stop[0].area_code,nameLo:stop[0].name_lo,nameEn:stop[0].name_en,role:stop[0].stop_role,order:stop[0].stop_order,latitude:stop[0].latitude,longitude:stop[0].longitude}};
+ }
+ async persistTransportPickupSelection(tx:TransactionContext,input:{bookingId:string;serviceId:string;selection:TransportPickupSelection}){
+  if(input.selection.mode!=="BUS_DESIGNATED_STOP")return;
+  const s=input.selection.stop;
+  await tx.execute("INSERT INTO booking_designated_stop_snapshots(booking_id,service_id,source_stop_id,area_code,name_lo,name_en,stop_role,stop_order,latitude,longitude) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::numeric,$10::numeric)",[input.bookingId,input.serviceId,s.id,s.areaCode,s.nameLo,s.nameEn,s.role,s.order,s.latitude,s.longitude]);
+ }
  async getCompletedIdempotentBooking(tx:TransactionContext,userId:string,key:string){const r=await tx.query<{booking_id:string;booking_ref:string}>("SELECT b.id booking_id,b.booking_ref FROM booking_idempotency i JOIN bookings b ON b.id=i.booking_id WHERE i.user_id=$1 AND i.idempotency_key=$2 AND i.status='COMPLETED'",[userId,key]);return r[0]?{bookingId:r[0].booking_id,bookingRef:r[0].booking_ref}:null}
  async lockAvailability(tx:TransactionContext,id:string){const r=await tx.query<{remaining:number|null}>("SELECT remaining FROM availability WHERE id=$1 FOR UPDATE",[id]);if(!r[0])throw new Error("AVAILABILITY_NOT_FOUND");return r[0]}
  async reserveInventory(tx:TransactionContext,id:string,quantity:number){const current=await tx.query<{remaining:number|null;version:number}>("SELECT remaining,version FROM availability WHERE id=$1",[id]);if(!current[0])return null as never;if(current[0].remaining===null)return {remaining:null,version:current[0].version};const r=await tx.query<{remaining:number;version:number}>("UPDATE availability SET remaining=remaining-$2,version=version+1 WHERE id=$1 AND remaining >= $2 RETURNING remaining,version",[id,quantity]);return r[0]??null as never}

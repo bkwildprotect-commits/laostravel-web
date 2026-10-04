@@ -21,12 +21,14 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   const availabilityId=verified.quote.availabilityId;const serviceId=verified.quote.serviceId;const quantity=verified.quote.quantity;
   const ownership=await repo.resolveBookingOwnership(tx,{serviceId,availabilityId});const partnerId=ownership.partnerId;
   await repo.assertCommercialServiceArea(tx,serviceId);
+  const pickupSelection=await repo.resolveTransportPickupSelection(tx,{serviceId,designatedStopId:input.bookingRequest.designatedStopId});
   const inventory=await repo.lockAvailability(tx,availabilityId);
   assertReservableInventory(inventory,quantity);
   assertInventoryReservation(await repo.reserveInventory(tx,availabilityId,quantity));
   await repo.lockPartnerCommercialTerms(tx,partnerId);
   const commercial=await repo.allocateCommercialPath(tx,{partnerId:partnerId});
   const booking=await repo.createBooking(tx,{userId:input.userId,partnerId:partnerId,serviceId:serviceId,availabilityId:availabilityId,quantity:quantity,commercial,price:verified.price});
+  await repo.persistTransportPickupSelection(tx,{bookingId:booking.bookingId,serviceId,selection:pickupSelection});
   await repo.consumePriceQuote(tx,{priceQuoteId:verified.price.priceQuoteId,bookingId:booking.bookingId});
   await repo.persistCommercialPath(tx,{bookingId:booking.bookingId,partnerId:partnerId,commercial,price:verified.price});
   await repo.attachInventoryToBooking(tx,{bookingId:booking.bookingId,availabilityId:availabilityId,quantity:quantity,holdMinutes:holdPolicy.holdMinutes});
