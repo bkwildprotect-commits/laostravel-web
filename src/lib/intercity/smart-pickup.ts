@@ -1,4 +1,4 @@
-import {isValidCoordinates,type GeoCoordinates} from "@/lib/location/model";
+import {isValidCoordinates,type GeoCoordinates} from "../location/model";
 
 export const smartPickupStatuses=["PENDING","ACCEPTED","DECLINED","CANCELLED"] as const;
 export type SmartPickupStatus=(typeof smartPickupStatuses)[number];
