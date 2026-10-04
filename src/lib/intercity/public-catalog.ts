@@ -45,9 +45,10 @@ export function validateIntercityCatalogQuery(input:Record<string,string|null|un
  const destinationAreaCode=input.destinationAreaCode?.trim()||undefined;
  if((originAreaCode&&!areaCodePattern.test(originAreaCode))||(destinationAreaCode&&!areaCodePattern.test(destinationAreaCode)))
   throw new IntercityCatalogInputError("INVALID_AREA_CODE");
- const vehicleType=input.vehicleType?.trim()||undefined;
- if(vehicleType&&vehicleType!=="VIP_VAN"&&vehicleType!=="BUS")
+ const vehicleTypeRaw=input.vehicleType?.trim()||undefined;
+ if(vehicleTypeRaw&&vehicleTypeRaw!=="VIP_VAN"&&vehicleTypeRaw!=="BUS")
   throw new IntercityCatalogInputError("INVALID_VEHICLE_TYPE");
+ const vehicleType=vehicleTypeRaw as IntercityVehicleType|undefined;
  const locale=input.locale?.trim()||"en";
  if(locale!=="en"&&locale!=="lo"&&locale!=="th")throw new IntercityCatalogInputError("INVALID_LOCALE");
  const limitRaw=input.limit?.trim();
