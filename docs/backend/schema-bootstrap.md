@@ -12,3 +12,6 @@ Rules:
 5. No migration in this repository has been asserted as production-applied yet.
 
 0002 and 0004 explicitly inspect PostgreSQL catalog constraints before adding named constraints. 0004 also backfills commercial_path before enforcing NOT NULL.
+
+
+Current disposable integration bootstrap applies and verifies ordered migrations through `0029_partner_application_intake`, including Partner final verification requirements, booking-scoped chat/translation storage, explicit SOS location consent, and authenticated Partner application intake.
