@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {getSharedContract} from "../../../../../lib/shared/cross-platform-contract";
+export async function GET(){return NextResponse.json({data:getSharedContract(),error:null},{headers:{"Cache-Control":"public, max-age=300"}})}
