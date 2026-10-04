@@ -1,0 +1,6 @@
+import {describe,expect,it,vi} from "vitest";import {SettlementTransitionError,settleCommissionEntry} from "./postgres-settlement";
+function pool(q:ReturnType<typeof vi.fn>){return {connect:vi.fn().mockResolvedValue({query:q,release:vi.fn()})}}
+describe("commission settlement",()=>{
+ it("settles only earned commission and records the supplied reference",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{status:"EARNED",partner_id:"p1",booking_id:"b1"}]}).mockResolvedValueOnce({}).mockResolvedValueOnce({}).mockResolvedValueOnce({});await expect(settleCommissionEntry(pool(q) as never,{ledgerId:"l1",actorUserId:"a1",settlementReference:"bank-ref-1"})).resolves.toEqual({status:"SETTLED"});expect(String(q.mock.calls[3][0])).toContain("audit_logs");expect(q.mock.calls[3][1].at(-1)).toBe("bank-ref-1")});
+ it("fails closed unless ledger is earned",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{status:"PENDING",partner_id:"p1",booking_id:"b1"}]}).mockResolvedValueOnce({});await expect(settleCommissionEntry(pool(q) as never,{ledgerId:"l1",actorUserId:"a1",settlementReference:"ref"})).rejects.toBeInstanceOf(SettlementTransitionError)})
+});
