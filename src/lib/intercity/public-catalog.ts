@@ -16,6 +16,8 @@ export type IntercityCatalogQuery={
  limit?:number;
 };
 
+export type IntercityDesignatedStop={id:string;areaCode:string;name:string;role:"BOARDING"|"DROPOFF"|"BOTH";order:number;latitude:number;longitude:number};
+
 export type PublicIntercityDeparture={
  serviceId:string;
  availabilityId:string;
@@ -28,6 +30,7 @@ export type PublicIntercityDeparture={
  arrivalAt:string|null;
  remainingSeats:number;
  pricing:{currency:"LAK";unitAmount:string;partnerDiscountAmount:string;customerUnitTotal:string};
+ designatedStops:IntercityDesignatedStop[];
  pickup:
   |{mode:"SMART_PICKUP_REQUEST";maxDetourMeters:number;requiresOperatorApproval:true}
   |{mode:"DESIGNATED_STOP_ONLY";maxDetourMeters:null;requiresOperatorApproval:false};
@@ -63,6 +66,7 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
   origin_code:string;origin_name:string;destination_code:string;destination_name:string;
   starts_at:Date;ends_at:Date|null;remaining:number;currency:"LAK";unit_amount:string;partner_discount_amount:string;
   smart_pickup_enabled:boolean;smart_pickup_max_detour_m:number|null;pickup_requires_operator_approval:boolean;
+  designated_stops:Array<{id:string;areaCode:string;name:string;role:"BOARDING"|"DROPOFF"|"BOTH";order:number;latitude:string;longitude:string}>;
  }>(`
   SELECT s.id AS service_id,a.id AS availability_id,p.name AS partner_name,
          COALESCE(st.name,s.id::text) AS service_name,sc.vehicle_type,
@@ -72,7 +76,8 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
          CASE WHEN $5='lo' THEN destination.name_lo ELSE destination.name_en END AS destination_name,
          a.starts_at,a.ends_at,a.remaining,price.currency,price.unit_amount::text,
          price.partner_discount_amount::text,sc.smart_pickup_enabled,
-         sc.smart_pickup_max_detour_m,sc.pickup_requires_operator_approval
+         sc.smart_pickup_max_detour_m,sc.pickup_requires_operator_approval,
+         stop_list.designated_stops
   FROM services s
   JOIN partners p ON p.id=s.partner_id AND p.verification_status='APPROVED'
   JOIN partner_commercial_terms terms ON terms.partner_id=p.id
@@ -98,10 +103,21 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
     WHERE t.service_id=s.id AND t.locale IN ($5,'en')
     ORDER BY CASE WHEN t.locale=$5 THEN 0 ELSE 1 END LIMIT 1
   ) st ON true
+  LEFT JOIN LATERAL(
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'id',stop.id,'areaCode',stop.area_code,
+      'name',CASE WHEN $5='lo' THEN stop.name_lo ELSE stop.name_en END,
+      'role',stop.stop_role,'order',stop.stop_order,
+      'latitude',stop.latitude::text,'longitude',stop.longitude::text
+    ) ORDER BY stop.stop_order),'[]'::jsonb) AS designated_stops
+    FROM intercity_designated_stops stop
+    WHERE stop.service_id=s.id AND stop.active=true AND stop.verification_status='VERIFIED'
+  ) stop_list ON true
   WHERE s.service_kind='INTERCITY_TRANSPORT'
     AND ($2::text IS NULL OR origin.code=$2)
     AND ($3::text IS NULL OR destination.code=$3)
     AND ($4::text IS NULL OR sc.vehicle_type=$4)
+    AND (sc.vehicle_type<>'BUS' OR jsonb_array_length(stop_list.designated_stops)>0)
   ORDER BY a.starts_at,s.id
   LIMIT $6
  `,[input.date,input.originAreaCode??null,input.destinationAreaCode??null,input.vehicleType??null,input.locale??"en",input.limit??50]);
@@ -116,6 +132,7 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
    destination:{code:row.destination_code,name:row.destination_name},departureAt:row.starts_at.toISOString(),
    arrivalAt:row.ends_at?.toISOString()??null,remainingSeats:row.remaining,
    pricing:{currency:row.currency,unitAmount:row.unit_amount,partnerDiscountAmount:row.partner_discount_amount,customerUnitTotal:(unit-discount).toString()},
+   designatedStops:row.designated_stops.map(stop=>({...stop,latitude:Number(stop.latitude),longitude:Number(stop.longitude)})),
    pickup,
   };
  });

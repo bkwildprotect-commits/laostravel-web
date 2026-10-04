@@ -11,10 +11,11 @@ export type IntercityVehicleType="VIP_VAN"|"BUS";
 export type IntercityPickupPolicy=
  |{mode:"SMART_PICKUP_REQUEST";maxDetourMeters:number;requiresOperatorApproval:true}
  |{mode:"DESIGNATED_STOP_ONLY";maxDetourMeters:null;requiresOperatorApproval:false};
+export type IntercityDesignatedStop={id:string;areaCode:string;name:string;role:"BOARDING"|"DROPOFF"|"BOTH";order:number;latitude:number;longitude:number};
 export type IntercityDeparture={
  serviceId:string;availabilityId:string;partnerName:string;serviceName:string;vehicleType:IntercityVehicleType;
  origin:{code:string;name:string};destination:{code:string;name:string};departureAt:string;arrivalAt:string|null;remainingSeats:number;
  pricing:{currency:"LAK";unitAmount:MoneyAmount;partnerDiscountAmount:MoneyAmount;customerUnitTotal:MoneyAmount};
- pickup:IntercityPickupPolicy;
+ designatedStops:IntercityDesignatedStop[];pickup:IntercityPickupPolicy;
 };
 export type IntercityDeparturesResponse={departures:IntercityDeparture[]};
