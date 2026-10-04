@@ -91,4 +91,14 @@ describe("postgres booking lifecycle mutation",()=>{
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await expect(mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"no-gps",event:"CONFIRM"})).resolves.toEqual({status:"CONFIRMED"});
  });
+ it("records an attributable audit event for a material booking transition",async()=>{
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+  const execute=vi.fn().mockResolvedValue({rowCount:1});
+  await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"audit-1",event:"COMPLETE",actorUserId:"user-1"});
+  const audit=execute.mock.calls.find(([sql])=>String(sql).includes("INSERT INTO audit_logs"));
+  expect(audit).toBeTruthy();
+  expect(String(audit?.[0])).toContain("BOOKING_STATUS_CHANGED");
+  expect(audit?.[1]).toEqual(["user-1","audit-1","IN_SERVICE","COMPLETED","COMPLETE","NONE","NONE","NONE"]);
+ });
+
 });
