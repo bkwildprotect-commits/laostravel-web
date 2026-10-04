@@ -14,6 +14,6 @@ export async function mutatePartnerBookingLifecycle(pool:PgPoolLike,input:{userI
    WHERE pm.partner_id=$1 AND pm.user_id=$2 AND pc.booking_id=$3
   ) AS allowed`,[input.partnerId,input.userId,input.bookingId]);
   if(!access[0]?.allowed)throw new PartnerBookingMutationAccessDeniedError();
-  return mutateBookingLifecycle(tx,{bookingId:input.bookingId,event:input.event});
+  return mutateBookingLifecycle(tx,{bookingId:input.bookingId,event:input.event,actorUserId:input.userId});
  });
 }
