@@ -8,7 +8,7 @@ export class BookingLifecycleMutationError extends Error{
  constructor(public code:"BOOKING_NOT_FOUND"|"TRIAL_LEDGER_STATE_CHANGED"|"COMMISSION_LEDGER_STATE_CHANGED"|"INVENTORY_HOLD_STATE_CHANGED"|"MEETING_POINT_NOT_VERIFIED"){super(code)}
 }
 
-export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookingId:string;event:BookingEvent}):Promise<{status:BookingStatus}>{
+export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookingId:string;event:BookingEvent;actorUserId?:string}):Promise<{status:BookingStatus}>{
  const bookings=await tx.query<{status:BookingStatus}>("SELECT status FROM bookings WHERE id=$1 FOR UPDATE",[input.bookingId]);
  const booking=bookings[0];if(!booking)throw new BookingLifecycleMutationError("BOOKING_NOT_FOUND");
  const next=transitionBooking(booking.status,input.event);
@@ -45,5 +45,9 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   const r=await tx.execute("UPDATE partner_commission_ledger SET status=\'VOID\' WHERE booking_id=$1 AND status=\'PENDING\'",[input.bookingId]);
   if(r.rowCount!==1)throw new BookingLifecycleMutationError("COMMISSION_LEDGER_STATE_CHANGED");
  }
+ await tx.execute(
+  "INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'BOOKING_STATUS_CHANGED','booking',$2,jsonb_build_object('fromStatus',$3,'toStatus',$4,'event',$5,'trialAction',$6,'inventoryHoldAction',$7,'commissionAction',$8))",
+  [input.actorUserId??null,input.bookingId,booking.status,next,input.event,action,holdAction,commissionAction]
+ );
  return {status:next};
 }
