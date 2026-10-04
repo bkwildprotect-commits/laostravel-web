@@ -1,0 +1,7 @@
+import {describe,it,expect,vi} from "vitest";import {createSmartPickupRequest,decideSmartPickupRequest,SmartPickupError} from "./postgres-smart-pickup";
+function pool(query:ReturnType<typeof vi.fn>){return {connect:vi.fn().mockResolvedValue({query,release:vi.fn()})}}
+describe("intercity smart pickup",()=>{
+ it("creates only after server eligibility lookup",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{smart_pickup_max_detour_m:2000}]}).mockResolvedValueOnce({rows:[{id:"r1",operator_status:"PENDING"}]}).mockResolvedValueOnce({});await expect(createSmartPickupRequest(pool(q) as never,{userId:"u",bookingId:"b",latitude:18.9,longitude:102.4,label:"Hotel"})).resolves.toEqual({requestId:"r1",status:"PENDING",maxDetourMeters:2000});expect(String(q.mock.calls[1][0])).toContain("vehicle_type='VIP_VAN'")});
+ it("rejects ineligible bus or foreign booking",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({});await expect(createSmartPickupRequest(pool(q) as never,{userId:"u",bookingId:"b",latitude:18.9,longitude:102.4})).rejects.toBeInstanceOf(SmartPickupError)});
+ it("requires partner membership to decide",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{allowed:false}]}).mockResolvedValueOnce({});await expect(decideSmartPickupRequest(pool(q) as never,{userId:"u",partnerId:"p",requestId:"r",decision:"ACCEPTED"})).rejects.toMatchObject({code:"ACCESS_DENIED"})});
+});
