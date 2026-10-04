@@ -29,4 +29,19 @@ describe("partner booking lifecycle authorization",()=>{
   expect(sql).toContain("partner_booking_commercial_paths");
   expect(query.mock.calls[2][1]).toEqual(["p","u","b"]);
  });
+ it("passes the authenticated partner member as the lifecycle audit actor",async()=>{
+  const query=vi.fn()
+   .mockResolvedValueOnce({rows:[],rowCount:null})
+   .mockResolvedValueOnce({rows:[],rowCount:null})
+   .mockResolvedValueOnce({rows:[{allowed:true}],rowCount:1})
+   .mockResolvedValueOnce({rows:[{status:"IN_SERVICE"}],rowCount:1})
+   .mockResolvedValueOnce({rows:[],rowCount:0})
+   .mockResolvedValueOnce({rows:[],rowCount:0})
+   .mockResolvedValueOnce({rows:[],rowCount:0})
+   .mockResolvedValue({rows:[],rowCount:1});
+  await expect(mutatePartnerBookingLifecycle(poolWith(query) as unknown as PgPoolLike,{userId:"member-1",partnerId:"partner-1",bookingId:"booking-1",event:"COMPLETE"})).resolves.toEqual({status:"COMPLETED"});
+  const audit=query.mock.calls.find(([sql])=>String(sql).includes("INSERT INTO audit_logs"));
+  expect(audit?.[1]?.[0]).toBe("member-1");
+ });
+
 });
