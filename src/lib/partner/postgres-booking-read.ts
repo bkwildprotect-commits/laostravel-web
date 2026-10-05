@@ -1,11 +1,36 @@
 import type {Pool} from "pg";
+import {bookingStatuses,paymentStatuses} from "../shared/cross-platform-contract";
 
 export class PartnerAccessDeniedError extends Error{constructor(){super("PARTNER_ACCESS_DENIED")}}
+export class PartnerBookingContractError extends Error{constructor(){super("INVALID_PARTNER_BOOKING_RESPONSE")}}
+
+type BookingStatus=(typeof bookingStatuses)[number];
+type PaymentStatus=(typeof paymentStatuses)[number];
+const bookingStatusSet=new Set<string>(bookingStatuses);
+const paymentStatusSet=new Set<string>(paymentStatuses);
+const commercialPaths=new Set<string>(["LAUNCH_FREE","COMMISSIONABLE"]);
 
 export type PartnerBookingRow={
- bookingId:string;bookingRef:string;status:string;paymentStatus:string;createdAt:string;
- serviceId:string;quantity:number;currency:string;customerTotal:string;commercialPath:"LAUNCH_FREE"|"COMMISSIONABLE";
+ bookingId:string;bookingRef:string;status:BookingStatus;paymentStatus:PaymentStatus;createdAt:string;
+ serviceId:string;quantity:number;currency:"LAK";customerTotal:string;commercialPath:"LAUNCH_FREE"|"COMMISSIONABLE";
 };
+
+function mapPartnerBooking(r:{
+ booking_id:string;booking_ref:string;status:string;payment_status:string;created_at:Date;
+ service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:string;
+}):PartnerBookingRow{
+ if(!r.booking_id||!r.booking_ref||!r.service_id||
+   !bookingStatusSet.has(r.status)||!paymentStatusSet.has(r.payment_status)||
+   !(r.created_at instanceof Date)||!Number.isFinite(r.created_at.getTime())||
+   !Number.isSafeInteger(r.quantity)||r.quantity<1||r.currency!=="LAK"||
+   !/^\d+$/.test(r.customer_total)||!commercialPaths.has(r.commercial_path)){
+  throw new PartnerBookingContractError();
+ }
+ return {bookingId:r.booking_id,bookingRef:r.booking_ref,status:r.status as BookingStatus,
+  paymentStatus:r.payment_status as PaymentStatus,createdAt:r.created_at.toISOString(),
+  serviceId:r.service_id,quantity:r.quantity,currency:"LAK",customerTotal:r.customer_total,
+  commercialPath:r.commercial_path as "LAUNCH_FREE"|"COMMISSIONABLE"};
+}
 
 export async function listPartnerBookings(pool:Pool,input:{userId:string;partnerId:string;limit?:number}):Promise<PartnerBookingRow[]>{
  const limit=Math.min(Math.max(input.limit??50,1),100);
@@ -13,7 +38,7 @@ export async function listPartnerBookings(pool:Pool,input:{userId:string;partner
  if(!membership.rows[0]?.allowed)throw new PartnerAccessDeniedError();
  const result=await pool.query<{
   booking_id:string;booking_ref:string;status:string;payment_status:string;created_at:Date;
-  service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:"LAUNCH_FREE"|"COMMISSIONABLE";
+  service_id:string;quantity:number;currency:string;customer_total:string;commercial_path:string;
  }>(`
   SELECT b.id AS booking_id,b.booking_ref,b.status,b.payment_status,b.created_at,
          bi.service_id,bi.quantity,ps.currency,ps.customer_total,pc.path AS commercial_path
@@ -27,5 +52,5 @@ export async function listPartnerBookings(pool:Pool,input:{userId:string;partner
   ORDER BY b.created_at DESC,b.id DESC
   LIMIT $3
  `,[input.partnerId,input.userId,limit]);
- return result.rows.map(r=>({bookingId:r.booking_id,bookingRef:r.booking_ref,status:r.status,paymentStatus:r.payment_status,createdAt:r.created_at.toISOString(),serviceId:r.service_id,quantity:r.quantity,currency:r.currency,customerTotal:r.customer_total,commercialPath:r.commercial_path}));
+ return result.rows.map(mapPartnerBooking);
 }
