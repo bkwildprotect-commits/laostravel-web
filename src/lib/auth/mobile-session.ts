@@ -12,7 +12,7 @@ function displayCurrency(value:string):DisplayCurrency{
  * It never provisions an identity, grants a role or approves an application. */
 export async function readMobileSession(pool:Pool,userId:string){
  const user=await pool.query<{id:string;email:string;display_name:string|null;preferred_display_currency:string}>(
-  "SELECT u.id,u.email,p.display_name,p.preferred_display_currency FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=$1 AND u.status='ACTIVE'",[userId]);
+  "SELECT u.id,u.email,p.display_name,COALESCE(p.preferred_display_currency,'LAK') AS preferred_display_currency FROM users u LEFT JOIN user_profiles p ON p.user_id=u.id WHERE u.id=$1 AND u.status='ACTIVE'",[userId]);
  if(!user.rows[0])throw new AuthenticationError("AUTH_INVALID");
  const partners=await pool.query<{id:string;name:string;verification_status:string;business_status:string}>(
   "SELECT p.id,p.name,p.verification_status,p.business_status FROM partner_members pm JOIN partners p ON p.id=pm.partner_id WHERE pm.user_id=$1 ORDER BY p.id",[userId]);
