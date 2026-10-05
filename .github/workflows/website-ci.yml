@@ -25,6 +25,8 @@ jobs:
           fi
       - name: Run domain tests
         run: npm test
+      - name: Lint source
+        run: npm run lint -- --max-warnings=0
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Build production website
