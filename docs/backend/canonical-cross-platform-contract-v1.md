@@ -1,6 +1,6 @@
 # LaosTravel canonical cross-platform contract — v1
 
-Version: **2026-10-04.v1**
+Version: **2026-10-05.v1**
 
 This is the compatibility boundary for Website, Android and iOS. UI may differ by device; business truth must not.
 
@@ -30,7 +30,7 @@ Map and SOS are product utilities, **not bookable service categories**.
 
 ## Mobile reconciliation required
 Current Mobile remains a useful UX prototype, but these local rules must be replaced when API integration is performed:
-1. Add canonical `EXPIRED` booking state.
+1. Canonical `EXPIRED` is implemented by Mobile PR #29 and mapped by Website PR #50. It remains terminal and is allowed from `REQUESTED` only. Mobile PR #31 also aligns `CHECKED_IN` → `CANCELLED`. Keep the full transition-pair regressions passing.
 2. Map Mobile `verified` Partner status to canonical `APPROVED`; do not create a second backend status vocabulary.
 3. Replace local `open/comingSoon` service-area authority with backend `BOOKING_ENABLED/REGISTRATION_ONLY/SUSPENDED`.
 4. Remove client-authored `commissionRateBps`, hard-coded commission tables and client-selected promotion start/post-promo rate from booking economics.
@@ -40,6 +40,8 @@ Current Mobile remains a useful UX prototype, but these local rules must be repl
 8. Rewards must be granted by backend booking-linked/idempotent rules, not merely because the client says COMPLETED.
 9. Currency snapshot/double arithmetic is presentation-only; LAK integer amounts remain authoritative.
 10. Emergency phone data must be verified operational configuration before production.
+
+Mobile PR #32 aligns the local six-month models with individual Partner activation, calendar-month expiry, and separately accepted post-free commercial terms. This local-domain alignment does not establish authenticated API integration; backend terms and quotes remain authoritative.
 
 ## Website reconciliation
 Website already consumes/implements the canonical backend domains. New transport, rental and guide surfaces must continue to reuse shared services, availability, price offers, booking, payment and service-area enforcement rather than create vertical-specific truth.
