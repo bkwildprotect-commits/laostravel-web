@@ -19,7 +19,7 @@ describe("Partner commercial activation",()=>{
  it("fails closed before final verification approval",async()=>{
   const tx={query:vi.fn().mockResolvedValue([{verification_status:"PENDING",business_status:"DRAFT"}]),execute:vi.fn()};
   await expect(activatePartnerCommercially(tx as never,{partnerId:"p1",actorUserId:"admin"}))
-   .rejects.toMatchObject<Partial<PartnerCommercialActivationError>>({code:"PARTNER_NOT_APPROVED"});
+   .rejects.toMatchObject({code:"PARTNER_NOT_APPROVED"} satisfies Partial<PartnerCommercialActivationError>);
   expect(tx.execute).not.toHaveBeenCalled();
  });
 });
