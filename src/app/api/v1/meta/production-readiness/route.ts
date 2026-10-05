@@ -1,5 +1,5 @@
 import {NextResponse} from "next/server";
-import {getProductionReadiness} from "@/lib/infrastructure/production-readiness";
+import {getProductionReadiness} from "../../../../../lib/infrastructure/production-readiness";
 
 export const dynamic="force-dynamic";
 
