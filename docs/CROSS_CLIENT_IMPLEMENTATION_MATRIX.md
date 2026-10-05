@@ -1,12 +1,12 @@
 # Cross-client implementation matrix
 
-Reference Mobile audit: `laos-travel-app@3144a3f2acce`. Reference Website contract: this repository main + `SHARED_PRODUCT_CONTRACT.md`.
+Reference Mobile baseline: `laos-travel-app@2e35aabe3d553f19f163deed1a91dc581a907c9e` (merged PR #29/#31); commercial alignment: Mobile PR #32. Reference Website contract: `2026-10-05.v1` + `SHARED_PRODUCT_CONTRACT.md`. Local model parity and live API integration are separate release gates.
 
 | Domain | Website/backend | Mobile current state | Required convergence |
 |---|---|---|---|
-| Booking lifecycle | authoritative V2 | local models exist | consume shared statuses; no alternate lifecycle |
+| Booking lifecycle | authoritative V2 | EXPIRED and checked-in cancellation aligned; all 64 transition pairs covered | consume server lifecycle; retain transition regressions |
 | Payment | UNPAID/PAID/REFUNDED/DISPUTED, PAY_AT_PARTNER | mostly aligned | remove client payment truth callbacks |
-| 6-month free period | per-Partner activation | client promo model can choose start/rate | remove client policy ownership; read backend terms |
+| 6-month free period | per-Partner activation; accepted terms required after expiry | PR #32 aligns local calendar expiry and acceptance guard | read backend activation/expiry/accepted terms; local models are not authority |
 | Commission | versioned/dormant until terms | hard-coded category rates | remove active hard-coded production rates |
 | Partner discount | authoritative quote/snapshot | local promotion math | submit Partner offer; display server quote |
 | Service area | server fail-closed | local gate/model | backend response is final authority |
