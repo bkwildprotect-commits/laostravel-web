@@ -3,6 +3,15 @@ import type {TransactionContext} from "../infrastructure/transaction";
 import {mutateBookingLifecycle} from "./postgres-lifecycle";
 
 describe("postgres booking lifecycle mutation",()=>{
+ it.each(["CANCEL", "EXPIRE"] as const)("returns held inventory atomically on %s",async event=>{
+  const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"ACTIVE"}]).mockResolvedValueOnce([]);
+  const execute=vi.fn().mockResolvedValue({rowCount:1});
+  await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"release-1",event});
+  const sql=String(execute.mock.calls.find(([statement])=>String(statement).includes("UPDATE inventory_holds"))?.[0]);
+  expect(sql).toContain("RETURNING availability_id,quantity");
+  expect(sql).toContain("UPDATE availability");
+  expect(sql).toContain("SUM(quantity)");
+ });
  it("completes booking and consumes its reserved trial in one transaction context",async()=>{
   const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});

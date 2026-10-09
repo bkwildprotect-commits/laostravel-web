@@ -16,6 +16,7 @@ export async function createBookingAtomically(txAdapter:TransactionAdapter,repo:
   if(idem==="CONFLICT")throw new BookingTransactionError("IDEMPOTENCY_CONFLICT","Idempotency key was already used for a different request",409);
   if(idem==="IN_PROGRESS")throw new BookingTransactionError("REQUEST_IN_PROGRESS","An identical booking request is already processing",409);
   if(idem==="REPLAY"){const prior=await repo.getCompletedIdempotentBooking(tx,input.userId,input.idempotencyKey);if(!prior)throw new BookingTransactionError("REQUEST_IN_PROGRESS","Completed replay record is not yet readable",409);return {...prior,replayed:true};}
+  if(input.bookingRequest.couponCode!==undefined||(input.bookingRequest.pointsToRedeem??0)>0)throw new BookingTransactionError("BOOKING_BENEFITS_UNAVAILABLE","Booking benefits are not available until authoritative redemption is configured",503);
   const verified=await verifyBookingQuote(new PostgresQuoteStore(tx),input.bookingRequest);
   if(verified.quote.serviceId!==input.bookingRequest.serviceId||verified.quote.quantity!==input.bookingRequest.quantity)throw new BookingTransactionError("PRICE_QUOTE_MISMATCH","Authoritative quote does not match booking input",409);
   const availabilityId=verified.quote.availabilityId;const serviceId=verified.quote.serviceId;const quantity=verified.quote.quantity;

@@ -14,6 +14,7 @@
 - Terminal alternatives: `CANCELLED | NO_SHOW`; internal `EXPIRED` is supported for request expiry.
 - Payment is independent: `UNPAID | PAID | REFUNDED | DISPUTED`.
 - Check-in never means paid. A UI action, QR display, receipt upload or client callback never creates `PAID` truth by itself.
+- Releasing or expiring an active request hold restores its reserved quantity exactly once in the same transaction; confirmation retains the reserved inventory.
 - Launch payment mode is `PAY_AT_PARTNER`: customer pays the Partner directly using a Partner-declared method. LaosTravel does not hold customer funds in this mode.
 
 ## 3. Launch commercial terms
@@ -92,6 +93,8 @@ A published trip can sell only when seller verification/commercial eligibility, 
 ## 14. Coupons, LAOS Coins and rewards
 - Benefits attach to an eligible booking/transaction and are server-authoritative.
 - Prevent duplicate earning/redemption and negative/lost balances with transactional/idempotent rules.
+- Concurrent completion reward requests must yield one ledger credit and an idempotent replay for the duplicate.
+- Until authoritative benefit redemption is connected, new booking requests with a coupon or positive points redemption fail with HTTP 503 / `BOOKING_BENEFITS_UNAVAILABLE`; benefits must never be silently ignored. Zero points remains a normal booking request. Completed idempotent replays retain their original response.
 - Cross-service reward chains are optional; opting out carries no penalty.
 - Referral/reward qualification must not be decided solely by client state.
 
