@@ -138,14 +138,16 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
   expect(results[0].status).toBe("fulfilled");expect(await ledgerStatus(id)).toBe("REVERSED");
   await expect(settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"repeat"})).rejects.toMatchObject({code:"COMMISSION_NOT_EARNED"});
  });
- it.each(["past","unknown","closed"])("never credits a %s capacity slot",async mode=>{
+ it.each(["past","unknown","closed","no-price"])("never credits a %s capacity slot",async mode=>{
   const {id,availability}=await heldBooking();
   if(mode==="past")await pool.query("UPDATE availability SET starts_at=now()-interval '1 minute' WHERE id=$1",[availability]);
   if(mode==="unknown")await pool.query("UPDATE availability SET starts_at=NULL WHERE id=$1",[availability]);
+  if(mode==="no-price")await pool.query("UPDATE service_price_offers SET effective_until=now() WHERE service_id=$1",[service]);
   if(mode==="closed")await pool.query("UPDATE services SET status='DRAFT' WHERE id=$1",[service]);
   await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:"CANCEL"}));
   expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(2);
   await pool.query("UPDATE services SET status='ACTIVE' WHERE id=$1",[service]);
+  await pool.query("UPDATE service_price_offers SET effective_until=NULL WHERE service_id=$1",[service]);
  });
  it("restores confirmed unused future capacity once even under concurrent cancellation",async()=>{
   const {id,availability}=await heldBooking();
