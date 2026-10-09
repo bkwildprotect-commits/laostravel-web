@@ -35,7 +35,12 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
  }
  if(holdAction!=="NONE"){
   const target=holdAction==="CONSUME"?"CONSUMED":holdAction==="RELEASE"?"RELEASED":"EXPIRED";
-  const r=await tx.execute("UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status=\'ACTIVE\'",[input.bookingId,target]);
+  // Credit only the holds actually changed by this statement. Grouping matters
+  // when several booking items reserve the same availability row.
+  const sql=holdAction==="CONSUME"
+   ? "UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status='ACTIVE'"
+   : "WITH released AS (UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status='ACTIVE' RETURNING availability_id,quantity), quantities AS (SELECT availability_id,SUM(quantity)::integer AS quantity FROM released GROUP BY availability_id), restored AS (UPDATE availability a SET remaining=a.remaining+q.quantity FROM quantities q WHERE a.id=q.availability_id RETURNING a.id) SELECT availability_id FROM released";
+  const r=await tx.execute(sql,[input.bookingId,target]);
   if(r.rowCount!==expectedHoldMutations)throw new BookingLifecycleMutationError("INVENTORY_HOLD_STATE_CHANGED");
  }
  if(commissionAction==="EARN"){
@@ -46,7 +51,7 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   if(r.rowCount!==1)throw new BookingLifecycleMutationError("COMMISSION_LEDGER_STATE_CHANGED");
  }
  await tx.execute(
-  "INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'BOOKING_STATUS_CHANGED','booking',$2,jsonb_build_object('fromStatus',$3,'toStatus',$4,'event',$5,'trialAction',$6,'inventoryHoldAction',$7,'commissionAction',$8))",
+  "INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'BOOKING_STATUS_CHANGED','booking',$2,jsonb_build_object('fromStatus',$3::text,'toStatus',$4::text,'event',$5::text,'trialAction',$6::text,'inventoryHoldAction',$7::text,'commissionAction',$8::text))",
   [input.actorUserId??null,input.bookingId,booking.status,next,input.event,action,holdAction,commissionAction]
  );
  return {status:next};

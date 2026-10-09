@@ -22,8 +22,15 @@ jobs:
       DATABASE_URL: postgresql://laostravel:test@localhost:5432/laostravel_test
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies for production mutation tests
+        run: npm ci --no-audit --no-fund
       - name: Bootstrap fresh database
         run: node scripts/run-db-bootstrap.mjs
+      - name: Exercise production lifecycle and reward mutations
+        run: RUN_DB_MUTATION_TESTS=1 npx vitest run db/integration/production-mutations.test.ts
       - name: Run SQL integration checks
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/001_commercial_path.sql

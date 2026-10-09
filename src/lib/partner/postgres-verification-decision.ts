@@ -19,7 +19,7 @@ export async function decidePartnerVerification(pool:Pool,input:{partnerId:strin
    if(missing.rows.length)throw new PartnerVerificationNotReadyError(missing.rows.map(x=>x.document_type));
   }
   await client.query("UPDATE partners SET verification_status=$2 WHERE id=$1",[input.partnerId,input.decision]);
-  await client.query("INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'PARTNER_VERIFICATION_DECIDED','partner',$2,jsonb_build_object('fromStatus',$3,'toStatus',$4))",[input.actorUserId,input.partnerId,partner.rows[0].verification_status,input.decision]);
+  await client.query("INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'PARTNER_VERIFICATION_DECIDED','partner',$2,jsonb_build_object('fromStatus',$3::text,'toStatus',$4::text))",[input.actorUserId,input.partnerId,partner.rows[0].verification_status,input.decision]);
   await client.query("COMMIT");return {status:input.decision};
  }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
 }
