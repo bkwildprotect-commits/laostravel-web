@@ -3,7 +3,7 @@ export type BookingPriceSnapshot={currency:string;baseAmount:string;feesAmount:s
 export type TransportPickupSelection=
  |{mode:"NOT_INTERCITY"|"VIP_VAN"}
  |{mode:"BUS_DESIGNATED_STOP";stop:{id:string;areaCode:string;nameLo:string;nameEn:string;role:"BOARDING"|"BOTH";order:number;latitude:string;longitude:string}};
-export type CommercialAllocation={path:"LAUNCH_FREE";freeEndsAt:string}|{path:"COMMISSIONABLE";ruleVersion:string};
+export type CommercialAllocation={path:"LAUNCH_FREE";freeEndsAt:string}|{path:"COMMISSIONABLE";ruleVersion:string;acceptedTermsVersion?:string};
 export interface BookingTransactionRepository{
  claimIdempotency(tx:TransactionContext,userId:string,key:string,requestHash:string):Promise<"CLAIMED"|"REPLAY"|"CONFLICT"|"IN_PROGRESS">;
  resolveBookingOwnership(tx:TransactionContext,input:{serviceId:string;availabilityId:string}):Promise<{partnerId:string}>;

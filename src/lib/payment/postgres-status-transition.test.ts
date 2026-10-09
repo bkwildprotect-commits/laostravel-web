@@ -1,3 +1,7 @@
-import {describe,expect,it,vi} from "vitest";import {PaymentTransitionError,transitionBookingPayment} from "./postgres-status-transition";
-function pool(q:ReturnType<typeof vi.fn>){return {connect:vi.fn().mockResolvedValue({query:q,release:vi.fn()})}}
-describe("payment status transition",()=>{it("updates and audits a valid transition",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{payment_status:"UNPAID"}]}).mockResolvedValueOnce({}).mockResolvedValueOnce({}).mockResolvedValueOnce({});await expect(transitionBookingPayment(pool(q) as never,{bookingId:"b1",actorUserId:"u1",to:"PAID",reason:"PARTNER_CONFIRMED"})).resolves.toEqual({status:"PAID"});expect(String(q.mock.calls[3][0])).toContain("audit_logs")});it("rejects impossible/repeated transitions",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{payment_status:"UNPAID"}]}).mockResolvedValueOnce({});await expect(transitionBookingPayment(pool(q) as never,{bookingId:"b1",actorUserId:"u1",to:"REFUNDED",reason:"x"})).rejects.toBeInstanceOf(PaymentTransitionError);expect(q.mock.calls.at(-1)?.[0]).toBe("ROLLBACK")})});
+import {describe,expect,it,vi} from "vitest";
+import {transitionBookingPayment} from "./postgres-status-transition";
+function pool(payment:string){const q=vi.fn(async(sql:string)=>sql.includes('FROM bookings')?{rows:[{status:"COMPLETED",payment_status:payment}]}:{rows:[],rowCount:1});return {q,p:{connect:async()=>({query:q,release:vi.fn()})}}}
+describe("payment status transition",()=>{
+ it("updates and audits a valid transition",async()=>{const {q,p}=pool("UNPAID");await expect(transitionBookingPayment(p as never,{bookingId:"b",actorUserId:"u",to:"PAID",reason:"direct payment"})).resolves.toEqual({status:"PAID"});expect(q.mock.calls.some(([sql])=>sql.includes('audit_logs'))).toBe(true)});
+ it.each(["UNPAID","REFUNDED"])("rejects invalid transition from %s",async payment=>{const {p}=pool(payment);await expect(transitionBookingPayment(p as never,{bookingId:"b",actorUserId:"u",to:payment==="REFUNDED"?"DISPUTED":"REFUNDED",reason:"test"})).rejects.toMatchObject({code:"INVALID_PAYMENT_TRANSITION"})});
+});

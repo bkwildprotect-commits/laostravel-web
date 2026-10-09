@@ -1,3 +1,4 @@
+import {mapMutationError} from "../../../../../../../../lib/api/mutation-error";
 import {NextResponse} from "next/server";
 import {AuthenticationError} from "../../../../../../../../lib/auth/authentication";
 import {getRuntimeAuthenticationAdapter} from "../../../../../../../../lib/auth/runtime";
@@ -23,6 +24,8 @@ export async function PATCH(request:Request,{params}:{params:Promise<{partnerId:
   const result=await mutatePartnerBookingLifecycle(getPostgresPool(),{userId:user.userId,partnerId,bookingId,event:body.event as BookingEvent});
   return NextResponse.json({data:result,error:null},{status:200});
  }catch(error){
+ const mapped=mapMutationError(error);if(mapped)return NextResponse.json({data:null,error:{code:mapped.code,message:mapped.message}},{status:mapped.status});
+
   if(error instanceof PartnerBookingMutationAccessDeniedError)return NextResponse.json({data:null,error:{code:"PARTNER_BOOKING_MUTATION_ACCESS_DENIED",message:"Partner booking access is not permitted."}},{status:403});
   if(error instanceof BookingLifecycleMutationError&&error.code==="BOOKING_NOT_FOUND")return NextResponse.json({data:null,error:{code:error.code,message:"Booking was not found."}},{status:404});
   if(error instanceof BookingLifecycleMutationError)return NextResponse.json({data:null,error:{code:error.code,message:"Booking status could not be updated safely."}},{status:409});

@@ -7,7 +7,7 @@ describe("Partner commercial activation",()=>{
    query:vi.fn()
     .mockResolvedValueOnce([{verification_status:"APPROVED",business_status:"DRAFT"}])
     .mockResolvedValueOnce([{verification_status:"APPROVED",business_status:"ACTIVE"}])
-    .mockResolvedValueOnce([]),
+    .mockResolvedValueOnce([{id:"sellable-service"}]).mockResolvedValueOnce([]),
    execute:vi.fn().mockResolvedValue({rowCount:1})
   };
   await expect(activatePartnerCommercially(tx as never,{partnerId:"p1",actorUserId:"admin"}))
