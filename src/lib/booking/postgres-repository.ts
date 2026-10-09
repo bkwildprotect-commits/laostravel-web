@@ -30,13 +30,13 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
  async reserveInventory(tx:TransactionContext,id:string,quantity:number){const current=await tx.query<{remaining:number|null;version:number}>("SELECT remaining,version FROM availability WHERE id=$1",[id]);if(!current[0])return null as never;if(current[0].remaining===null)return {remaining:null,version:current[0].version};const r=await tx.query<{remaining:number;version:number}>("UPDATE availability SET remaining=remaining-$2,version=version+1 WHERE id=$1 AND remaining >= $2 RETURNING remaining,version",[id,quantity]);return r[0]??null as never}
  async lockPartnerCommercialTerms(tx:TransactionContext,partnerId:string){await tx.query("SELECT id FROM partners WHERE id=$1 FOR UPDATE",[partnerId])}
  async allocateCommercialPath(tx:TransactionContext,input:{partnerId:string}):Promise<CommercialAllocation>{
-  const terms=await tx.query<{model:string;free_ends_at:string|null}>("SELECT model,free_ends_at FROM partner_commercial_terms WHERE partner_id=$1 FOR UPDATE",[input.partnerId]);
+  const terms=await tx.query<{model:string;free_ends_at:string|null;accepted_terms_version:string|null}>("SELECT model,free_ends_at,accepted_terms_version FROM partner_commercial_terms WHERE partner_id=$1 FOR UPDATE",[input.partnerId]);
   const term=terms[0];
   if(term?.model==="LAUNCH_FREE"&&term.free_ends_at&&new Date(term.free_ends_at).getTime()>Date.now())return {path:"LAUNCH_FREE",freeEndsAt:term.free_ends_at};
   // Expiry never silently activates commission. A separately accepted COMMISSION term is required.
-  if(term?.model!=="COMMISSION")throw new Error("PARTNER_COMMERCIAL_TERMS_REQUIRED");
+  if(term?.model!=="COMMISSION"||!term.accepted_terms_version?.trim())throw new Error("PARTNER_COMMERCIAL_TERMS_REQUIRED");
   const rules=await tx.query<{version:string}>("SELECT version FROM commission_rules WHERE status='ACTIVE' AND service_category IS NULL AND effective_from<=now() AND (effective_until IS NULL OR effective_until>now()) ORDER BY effective_from DESC LIMIT 1");
-  return {path:"COMMISSIONABLE",ruleVersion:rules[0]?.version??"UNRESOLVED"};
+  return {path:"COMMISSIONABLE",ruleVersion:rules[0]?.version??"UNRESOLVED",acceptedTermsVersion:term.accepted_terms_version};
  }
  async createBooking(tx:TransactionContext,input:Parameters<BookingTransactionRepository["createBooking"]>[1]){
   if(input.commercial.path==="COMMISSIONABLE"&&input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
@@ -49,12 +49,13 @@ export class PostgresBookingRepository implements BookingTransactionRepository{
  async consumePriceQuote(tx:TransactionContext,input:{priceQuoteId:string;bookingId:string}){const r=await tx.execute("UPDATE price_quotes SET consumed_at=now(),consumed_booking_id=$2 WHERE id=$1 AND consumed_at IS NULL AND consumed_booking_id IS NULL",[input.priceQuoteId,input.bookingId]);if(r.rowCount!==1)throw new Error("PRICE_QUOTE_ALREADY_CONSUMED")}
  async persistCommercialPath(tx:TransactionContext,input:{bookingId:string;partnerId:string;commercial:CommercialAllocation;price:import("./repository").BookingPriceSnapshot}){
   if(input.commercial.path==="COMMISSIONABLE"){
+   if(!input.commercial.acceptedTermsVersion?.trim())throw new Error("PARTNER_COMMERCIAL_TERMS_REQUIRED");
    if(!input.commercial.ruleVersion||input.commercial.ruleVersion==="UNRESOLVED")throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
    const rules=await tx.query<{rate_bps:number}>("SELECT rate_bps FROM commission_rules WHERE version=$1 AND status='ACTIVE' AND effective_from<=now() AND (effective_until IS NULL OR effective_until>now()) FOR SHARE",[input.commercial.ruleVersion]);
    const rule=rules[0];if(!rule)throw new Error("COMMISSION_RULE_NOT_CONFIGURED");
    const basis=BigInt(input.price.baseAmount);const commission=basis*BigInt(rule.rate_bps)/BigInt(10000);const partner=basis-commission;
    await tx.execute("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'COMMISSIONABLE')",[input.bookingId,input.partnerId]);
-   await tx.execute("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,commercial_path,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version) VALUES(gen_random_uuid(),$1,$2,'COMMISSIONABLE','PENDING',$3,$4::bigint,$5,$6::bigint,$7::bigint,$8)",[input.partnerId,input.bookingId,input.price.currency,input.price.baseAmount,rule.rate_bps,commission.toString(),partner.toString(),input.commercial.ruleVersion]);
+   await tx.execute("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,commercial_path,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version,commercial_terms_version) VALUES(gen_random_uuid(),$1,$2,'COMMISSIONABLE','PENDING',$3,$4::bigint,$5,$6::bigint,$7::bigint,$8,$9)",[input.partnerId,input.bookingId,input.price.currency,input.price.baseAmount,rule.rate_bps,commission.toString(),partner.toString(),input.commercial.ruleVersion,input.commercial.acceptedTermsVersion]);
    await tx.execute("UPDATE price_snapshots SET commission_rule_version=$2,commission_amount=$3::bigint,partner_amount=$4::bigint WHERE booking_id=$1",[input.bookingId,input.commercial.ruleVersion,commission.toString(),partner.toString()]);
    return;
   }

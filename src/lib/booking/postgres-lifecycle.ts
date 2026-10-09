@@ -9,7 +9,7 @@ export class BookingLifecycleMutationError extends Error{
 }
 
 export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookingId:string;event:BookingEvent;actorUserId?:string}):Promise<{status:BookingStatus}>{
- const bookings=await tx.query<{status:BookingStatus}>("SELECT status FROM bookings WHERE id=$1 FOR UPDATE",[input.bookingId]);
+ const bookings=await tx.query<{status:BookingStatus;payment_status:string}>("SELECT status,payment_status FROM bookings WHERE id=$1 FOR UPDATE",[input.bookingId]);
  const booking=bookings[0];if(!booking)throw new BookingLifecycleMutationError("BOOKING_NOT_FOUND");
  const next=transitionBooking(booking.status,input.event);
  const trials=await tx.query<{status:TrialStatus}>("SELECT status FROM partner_trial_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
@@ -23,8 +23,8 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   if(meetingPoints.some(point=>point.verification_status!=="VERIFIED"))throw new BookingLifecycleMutationError("MEETING_POINT_NOT_VERIFIED");
   await tx.execute("INSERT INTO booking_location_snapshots(booking_item_id,booking_id,service_id,source_location_id,name,area,latitude,longitude) SELECT bi.id,bi.booking_id,bi.service_id,g.id,g.name,g.area,g.latitude,g.longitude FROM booking_items bi JOIN geo_locations g ON g.service_id=bi.service_id AND g.kind='SERVICE_MEETING_POINT' AND g.verification_status='VERIFIED' WHERE bi.booking_id=$1 ON CONFLICT(booking_item_id) DO NOTHING",[input.bookingId]);
  }
- const commissions=await tx.query<{status:CommissionLedgerStatus}>("SELECT status FROM partner_commission_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
- const commission=commissions[0];const commissionAction=commission?commissionActionForBooking(next,commission.status):"NONE";
+ const commissions=await tx.query<{status:CommissionLedgerStatus;commercial_terms_version:string|null}>("SELECT status,commercial_terms_version FROM partner_commission_ledger WHERE booking_id=$1 FOR UPDATE",[input.bookingId]);
+ const commission=commissions[0];const commissionAction=commission?commissionActionForBooking(next,commission.status,booking.payment_status,Boolean(commission.commercial_terms_version?.trim())):"NONE";
  await tx.execute("UPDATE bookings SET status=$2 WHERE id=$1",[input.bookingId,next]);
  if(action==="CONSUME"){
   const r=await tx.execute("UPDATE partner_trial_ledger SET status='CONSUMED',consumed_at=NOW(),released_at=NULL WHERE booking_id=$1 AND status='RESERVED'",[input.bookingId]);
@@ -39,8 +39,8 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   // when several booking items reserve the same availability row.
   const sql=holdAction==="CONSUME"
    ? "UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status='ACTIVE'"
-   : "WITH released AS (UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status='ACTIVE' RETURNING availability_id,quantity), quantities AS (SELECT availability_id,SUM(quantity)::integer AS quantity FROM released GROUP BY availability_id), restored AS (UPDATE availability a SET remaining=a.remaining+q.quantity FROM quantities q WHERE a.id=q.availability_id RETURNING a.id) SELECT availability_id FROM released";
-  const r=await tx.execute(sql,[input.bookingId,target]);
+   : "WITH released AS (UPDATE inventory_holds SET status=$2 WHERE booking_id=$1 AND status=$3 RETURNING availability_id,quantity), quantities AS (SELECT availability_id,SUM(quantity)::integer AS quantity FROM released GROUP BY availability_id), restored AS (UPDATE availability a SET remaining=a.remaining+q.quantity,version=a.version+1 FROM quantities q WHERE a.id=q.availability_id AND a.starts_at>now() AND (a.capacity IS NULL OR a.remaining+q.quantity<=a.capacity) AND EXISTS(SELECT 1 FROM services s JOIN partners p ON p.id=s.partner_id JOIN service_area_assignments saa ON saa.service_id=s.id JOIN service_areas sa ON sa.code=saa.area_code WHERE s.id=a.service_id AND s.status='ACTIVE' AND p.verification_status='APPROVED' AND p.business_status='ACTIVE' AND sa.commercial_status='BOOKING_ENABLED') RETURNING a.id) SELECT availability_id FROM released";
+  const r=await tx.execute(sql,holdAction==="CONSUME"?[input.bookingId,target]:[input.bookingId,target,booking.status==="CONFIRMED"?"CONSUMED":"ACTIVE"]);
   if(r.rowCount!==expectedHoldMutations)throw new BookingLifecycleMutationError("INVENTORY_HOLD_STATE_CHANGED");
  }
  if(commissionAction==="EARN"){

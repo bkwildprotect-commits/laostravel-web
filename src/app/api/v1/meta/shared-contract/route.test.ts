@@ -1,2 +1,2 @@
 import {GET} from "./route";import {describe,it,expect} from "vitest";
-describe("GET shared contract",()=>{it("returns the versioned client contract",async()=>{const r=await GET();expect(r.status).toBe(200);const b=await r.json();expect(b.data.version).toBe("2026-10-05.v1");expect(b.data.bookingStatuses).toContain("EXPIRED");expect(b.data.launchPolicy.commissionAfterExpiry).toBe("REQUIRES_SEPARATELY_ACCEPTED_TERMS")})});
+describe("GET shared contract",()=>{it("returns the versioned client contract",async()=>{const r=await GET();expect(r.status).toBe(200);const b=await r.json();expect(b.data.version).toBe("2026-10-10.v2");expect(b.data.bookingStatuses).toContain("EXPIRED");expect(b.data.launchPolicy.commissionAfterExpiry).toBe("REQUIRES_SEPARATELY_ACCEPTED_TERMS")})});

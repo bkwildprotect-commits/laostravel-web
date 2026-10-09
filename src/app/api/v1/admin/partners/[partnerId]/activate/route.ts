@@ -1,3 +1,4 @@
+import {mapMutationError} from "../../../../../../../lib/api/mutation-error";
 import {NextResponse} from "next/server";
 import {AuthenticationError} from "@/lib/auth/authentication";
 import {AdminAuthorizationError,requireAdminRole} from "@/lib/auth/admin-role";
@@ -19,6 +20,8 @@ export async function POST(request:Request,{params}:{params:Promise<{partnerId:s
   const data=await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>activatePartnerCommercially(tx,{partnerId,actorUserId:actor.userId}));
   return NextResponse.json({data,error:null});
  }catch(e){
+ const mapped=mapMutationError(e);if(mapped)return NextResponse.json({data:null,error:{code:mapped.code,message:mapped.message}},{status:mapped.status});
+
   if(e instanceof PartnerCommercialActivationError){
    const status=e.code==="PARTNER_NOT_FOUND"?404:409;
    return NextResponse.json({data:null,error:{code:e.code,message:"Partner is not eligible for commercial activation."}},{status});

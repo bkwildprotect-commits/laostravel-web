@@ -1,6 +1,10 @@
-import {describe,expect,it,vi} from "vitest";import {SettlementTransitionError,settleCommissionEntry} from "./postgres-settlement";
-function pool(q:ReturnType<typeof vi.fn>){return {connect:vi.fn().mockResolvedValue({query:q,release:vi.fn()})}}
+import {describe,expect,it,vi} from "vitest";import {settleCommissionEntry} from "./postgres-settlement";
+function pool(payment="PAID",terms:string|null="T1",status="EARNED"){
+ const q=vi.fn(async(sql:string)=>({rows:sql.includes('FROM bookings')?[{status:"COMPLETED",payment_status:payment}]:sql.includes('SELECT booking_id')?[{booking_id:"b"}]:sql.includes('FROM partner_commission_ledger')?[{status,partner_id:"p",booking_id:"b",commercial_terms_version:terms}]:[],rowCount:1}));return {q,p:{connect:async()=>({query:q,release:vi.fn()})}};
+}
 describe("commission settlement",()=>{
- it("settles only earned commission and records the supplied reference",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{status:"EARNED",partner_id:"p1",booking_id:"b1"}]}).mockResolvedValueOnce({}).mockResolvedValueOnce({}).mockResolvedValueOnce({});await expect(settleCommissionEntry(pool(q) as never,{ledgerId:"l1",actorUserId:"a1",settlementReference:"bank-ref-1"})).resolves.toEqual({status:"SETTLED"});expect(String(q.mock.calls[3][0])).toContain("audit_logs");expect(q.mock.calls[3][1].at(-1)).toBe("bank-ref-1")});
- it("fails closed unless ledger is earned",async()=>{const q=vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({rows:[{status:"PENDING",partner_id:"p1",booking_id:"b1"}]}).mockResolvedValueOnce({});await expect(settleCommissionEntry(pool(q) as never,{ledgerId:"l1",actorUserId:"a1",settlementReference:"ref"})).rejects.toBeInstanceOf(SettlementTransitionError)})
+ it("settles qualified earned commission once with audit",async()=>{const {p,q}=pool();await expect(settleCommissionEntry(p as never,{ledgerId:"l",actorUserId:"u",settlementReference:"ref"})).resolves.toEqual({status:"SETTLED"});expect(q.mock.calls.some(([sql])=>sql.includes('audit_logs'))).toBe(true)});
+ it.each(["UNPAID","REFUNDED","DISPUTED"])("blocks settlement on %s",async payment=>{await expect(settleCommissionEntry(pool(payment).p as never,{ledgerId:"l",actorUserId:"u",settlementReference:"ref"})).rejects.toMatchObject({code:"COMMISSION_NOT_ELIGIBLE"})});
+ it("blocks missing historical acceptance evidence",async()=>{await expect(settleCommissionEntry(pool("PAID",null).p as never,{ledgerId:"l",actorUserId:"u",settlementReference:"ref"})).rejects.toMatchObject({code:"COMMISSION_NOT_ELIGIBLE"})});
+ it("blocks repeated settlement",async()=>{await expect(settleCommissionEntry(pool("PAID","T1","SETTLED").p as never,{ledgerId:"l",actorUserId:"u",settlementReference:"ref"})).rejects.toMatchObject({code:"COMMISSION_NOT_EARNED"})});
 });

@@ -13,7 +13,7 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(sql).toContain("SUM(quantity)");
  });
  it("completes booking and consumes its reserved trial in one transaction context",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE",payment_status:"PAID"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"b1",event:"COMPLETE"});
   expect(result).toEqual({status:"COMPLETED"});
@@ -28,12 +28,12 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(execute.mock.calls[1][0]).toContain("status='RELEASED'");
  });
  it("fails closed if the reserved trial changed concurrently",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE",payment_status:"PAID"}]).mockResolvedValueOnce([{status:"RESERVED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
   await expect(mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"b3",event:"COMPLETE"})).rejects.toMatchObject({code:"TRIAL_LEDGER_STATE_CHANGED"});
  });
  it("earns requested commission when a confirmed commissionable booking completes",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE",payment_status:"PAID"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING",commercial_terms_version:"T1"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c1",event:"COMPLETE"});
   expect(result).toEqual({status:"COMPLETED"});
@@ -41,7 +41,7 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(execute.mock.calls.some(([sql])=>String(sql).includes("UPDATE partner_commission_ledger")&&String(sql).includes("status='EARNED'"))).toBe(true);
  });
  it("voids requested commission when a requested booking is cancelled",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING",commercial_terms_version:"T1"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c2",event:"CANCEL"});
   const mutation=String(execute.mock.calls.find(([sql])=>String(sql).includes("UPDATE partner_commission_ledger"))?.[0]);
@@ -49,21 +49,21 @@ describe("postgres booking lifecycle mutation",()=>{
   expect(mutation).not.toContain("voided_at");
  });
  it("does not automatically mutate commission on no-show",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"CONFIRMED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"CONFIRMED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING",commercial_terms_version:"T1"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c3",event:"MARK_NO_SHOW"});
   expect(execute.mock.calls.some(([sql])=>String(sql).includes("commission_ledger"))).toBe(false);
  });
 
  it("voids requested commission when a requested booking expires",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"REQUESTED"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING",commercial_terms_version:"T1"}]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   const result=await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c4",event:"EXPIRE"});
   expect(result).toEqual({status:"EXPIRED"});
   expect(execute.mock.calls.some(([sql])=>String(sql).includes("status='VOID'"))).toBe(true);
  });
  it("fails closed if requested commission changes concurrently",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING"}]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE",payment_status:"PAID"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([{status:"PENDING",commercial_terms_version:"T1"}]);
   const execute=vi.fn().mockResolvedValueOnce({rowCount:1}).mockResolvedValueOnce({rowCount:0});
   await expect(mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"c5",event:"COMPLETE"})).rejects.toMatchObject({code:"COMMISSION_LEDGER_STATE_CHANGED"});
  });
@@ -101,7 +101,7 @@ describe("postgres booking lifecycle mutation",()=>{
   await expect(mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"no-gps",event:"CONFIRM"})).resolves.toEqual({status:"CONFIRMED"});
  });
  it("records an attributable audit event for a material booking transition",async()=>{
-  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+  const query=vi.fn().mockResolvedValueOnce([{status:"IN_SERVICE",payment_status:"PAID"}]).mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
   const execute=vi.fn().mockResolvedValue({rowCount:1});
   await mutateBookingLifecycle({query,execute} as unknown as TransactionContext,{bookingId:"audit-1",event:"COMPLETE",actorUserId:"user-1"});
   const audit=execute.mock.calls.find(([sql])=>String(sql).includes("INSERT INTO audit_logs"));

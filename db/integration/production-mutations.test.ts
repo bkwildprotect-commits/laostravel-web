@@ -8,6 +8,10 @@ import {grantCompletionReward} from "../../src/lib/rewards/postgres-completion-r
 import {transitionBookingPayment} from "../../src/lib/payment/postgres-status-transition";
 import {decidePartnerVerification} from "../../src/lib/partner/postgres-verification-decision";
 import {approvePartnerApplication} from "../../src/lib/partner/postgres-application-review";
+import {createAuthoritativeQuote} from "../../src/lib/pricing/postgres-quote-engine";
+import {createBookingAtomically} from "../../src/lib/booking/orchestrator";
+import {PostgresBookingRepository} from "../../src/lib/booking/postgres-repository";
+import {activatePartnerCommercially} from "../../src/lib/partner/postgres-commercial-activation";
 import {settleCommissionEntry} from "../../src/lib/commission/postgres-settlement";
 
 // Only an explicitly enabled disposable CI database may run these tests.
@@ -18,8 +22,12 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
  beforeAll(async()=>{
   pool=new Pool({connectionString:process.env.DATABASE_URL});
   await pool.query("INSERT INTO users(id,email) VALUES($1,$2)",[user,`${user}@example.invalid`]);
-  await pool.query("INSERT INTO partners(id,name) VALUES($1,'Mutation Regression')",[partner]);
+  await pool.query("INSERT INTO partners(id,name,verification_status,business_status) VALUES($1,'Mutation Regression','APPROVED','ACTIVE')",[partner]);
   await pool.query("INSERT INTO services(id,partner_id,category,status,booking_mode) VALUES($1,$2,'TOUR','ACTIVE','CAPACITY')",[service,partner]);
+  await pool.query("INSERT INTO service_area_assignments(service_id,area_code) SELECT $1,code FROM service_areas WHERE commercial_status='BOOKING_ENABLED' LIMIT 1",[service]);
+  await pool.query("INSERT INTO service_price_offers(id,service_id,currency,unit_amount,status,effective_from) VALUES($1,$2,'LAK',100,'ACTIVE',now()-interval '1 day')",[randomUUID(),service]);
+  await pool.query("INSERT INTO partner_commercial_terms(partner_id,model,free_started_at,free_ends_at) VALUES($1,'LAUNCH_FREE',now(),now()+interval '6 months')",[partner]);
+  process.env.BOOKING_HOLD_MINUTES='15';
  });
  afterAll(async()=>{await pool.end()});
  async function booking(status="REQUESTED"){
@@ -35,7 +43,7 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
  }
  async function heldBooking(){
   const id=await booking(),availability=randomUUID();
-  await pool.query("INSERT INTO availability(id,service_id,remaining,capacity) VALUES($1,$2,2,5)",[availability,service]);
+  await pool.query("INSERT INTO availability(id,service_id,remaining,capacity,starts_at) VALUES($1,$2,2,5,now()+interval '1 day')",[availability,service]);
   // Two holds on one row: restoration must sum both, not join arbitrarily.
   for(const quantity of [1,2]){
    await pool.query("INSERT INTO inventory_holds(id,service_id,availability_id,booking_id,quantity,status,expires_at) VALUES($1,$2,$3,$4,$5,'ACTIVE',now()+interval '15 minutes')",[randomUUID(),service,availability,id,quantity]);
@@ -80,7 +88,8 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
  });
  it("commits final verification and audit metadata together",async()=>{
   await decidePartnerVerification(pool,{partnerId:partner,actorUserId:user,decision:"REJECTED"});
-  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='PARTNER_VERIFICATION_DECIDED'",[partner])).rows[0].metadata).toEqual({fromStatus:"DRAFT",toStatus:"REJECTED"});
+  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='PARTNER_VERIFICATION_DECIDED'",[partner])).rows[0].metadata).toEqual({fromStatus:"APPROVED",toStatus:"REJECTED"});
+  await pool.query("UPDATE partners SET verification_status='APPROVED' WHERE id=$1",[partner]);
  });
  it("approves an application with an auditable new partner identity",async()=>{
   const id=randomUUID();
@@ -91,8 +100,104 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
  it("settles an earned commission with its unchanged audit identifiers",async()=>{
   const id=await booking("COMPLETED"),ledger=randomUUID();
   await pool.query("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'COMMISSIONABLE')",[id,partner]);
-  await pool.query("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version) VALUES($1,$2,$3,'EARNED','LAK',100,1000,10,90,'regression-v1')",[ledger,partner,id]);
+  await pool.query("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version,commercial_terms_version) VALUES($1,$2,$3,'EARNED','LAK',100,1000,10,90,'regression-v1','terms-v1')",[ledger,partner,id]);
+  await pool.query("UPDATE bookings SET payment_status='PAID' WHERE id=$1",[id]);
   await settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"regression-reference"});
   expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='COMMISSION_SETTLED'",[ledger])).rows[0].metadata).toEqual({partnerId:partner,bookingId:id,settlementReference:"regression-reference"});
  });
+ async function commissionBooking(status="COMPLETED",terms:string|null="terms-v1"){
+  const id=await booking(status),ledger=randomUUID();
+  await pool.query("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'COMMISSIONABLE')",[id,partner]);
+  await pool.query("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version,commercial_terms_version) VALUES($1,$2,$3,'PENDING','LAK',100,1000,10,90,'regression-v1',$4)",[ledger,partner,id,terms]);
+  return {id,ledger};
+ }
+ async function ledgerStatus(id:string){return (await pool.query("SELECT status FROM partner_commission_ledger WHERE booking_id=$1",[id])).rows[0].status}
+ async function pay(id:string,to:"PAID"|"REFUNDED"|"DISPUTED"){return transitionBookingPayment(pool,{bookingId:id,actorUserId:user,to,reason:"regression"})}
+ it("qualifies only completed paid bookings and holds disputes without duplicate earning",async()=>{
+  const {id}=await commissionBooking();
+  expect(await ledgerStatus(id)).toBe("PENDING");
+  await pay(id,"PAID");expect(await ledgerStatus(id)).toBe("EARNED");
+  await expect(pay(id,"PAID")).rejects.toMatchObject({code:"INVALID_PAYMENT_TRANSITION"});
+  await pay(id,"DISPUTED");expect(await ledgerStatus(id)).toBe("PENDING");
+  await pay(id,"PAID");expect(await ledgerStatus(id)).toBe("EARNED");
+  await pay(id,"REFUNDED");expect(await ledgerStatus(id)).toBe("REVERSED");
+  await expect(pay(id,"DISPUTED")).rejects.toMatchObject({code:"INVALID_PAYMENT_TRANSITION"});
+  expect((await pool.query("SELECT count(*)::int n FROM partner_commission_ledger WHERE booking_id=$1",[id])).rows[0].n).toBe(1);
+ });
+ it("qualifies payment-before-completion only when completion actually commits",async()=>{
+  const {id}=await commissionBooking("IN_SERVICE");await pay(id,"PAID");expect(await ledgerStatus(id)).toBe("PENDING");
+  await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:"COMPLETE",actorUserId:user}));expect(await ledgerStatus(id)).toBe("EARNED");
+ });
+ it("blocks earning and settlement without historical accepted terms",async()=>{
+  const {id,ledger}=await commissionBooking("COMPLETED",null);await pay(id,"PAID");expect(await ledgerStatus(id)).toBe("PENDING");
+  await expect(settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"blocked"})).rejects.toMatchObject({code:"COMMISSION_NOT_EARNED"});
+ });
+ it("serializes concurrent refund and settlement and prevents further settlement",async()=>{
+  const {id,ledger}=await commissionBooking();await pay(id,"PAID");
+  const results=await Promise.allSettled([pay(id,"REFUNDED"),settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"race"})]);
+  expect(results[0].status).toBe("fulfilled");expect(await ledgerStatus(id)).toBe("REVERSED");
+  await expect(settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"repeat"})).rejects.toMatchObject({code:"COMMISSION_NOT_EARNED"});
+ });
+ it.each(["past","unknown","closed"])("never credits a %s capacity slot",async mode=>{
+  const {id,availability}=await heldBooking();
+  if(mode==="past")await pool.query("UPDATE availability SET starts_at=now()-interval '1 minute' WHERE id=$1",[availability]);
+  if(mode==="unknown")await pool.query("UPDATE availability SET starts_at=NULL WHERE id=$1",[availability]);
+  if(mode==="closed")await pool.query("UPDATE services SET status='DRAFT' WHERE id=$1",[service]);
+  await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:"CANCEL"}));
+  expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(2);
+  await pool.query("UPDATE services SET status='ACTIVE' WHERE id=$1",[service]);
+ });
+ it("restores confirmed unused future capacity once even under concurrent cancellation",async()=>{
+  const {id,availability}=await heldBooking();
+  await pool.query("UPDATE bookings SET status='CONFIRMED' WHERE id=$1",[id]);await pool.query("UPDATE inventory_holds SET status='CONSUMED' WHERE booking_id=$1",[id]);
+  const adapter=new PostgresTransactionAdapter(pool);
+  const results=await Promise.allSettled([1,2].map(()=>adapter.run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:"CANCEL"}))));
+  expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+  expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(5);
+ });
+ async function request(availability:string,key:string){
+  const date=(await pool.query("SELECT starts_at::date::text AS date FROM availability WHERE id=$1",[availability])).rows[0].date;
+  const quote=await createAuthoritativeQuote(pool,{serviceId:service,availabilityId:availability,date,quantity:1});
+  return {userId:user,idempotencyKey:key,requestHash:key,bookingRequest:{serviceId:service,date,quantity:1,availabilityToken:quote.availabilityToken,priceQuoteId:quote.priceQuoteId,idempotencyKey:key,traveller:{name:"Regression",email:"test@example.invalid"}}};
+ }
+ it("executes real concurrent booking requests without overselling",async()=>{
+  const availability=randomUUID();await pool.query("INSERT INTO availability(id,service_id,remaining,capacity,starts_at) VALUES($1,$2,1,1,now()+interval '2 days')",[availability,service]);
+  const inputs=await Promise.all([request(availability,randomUUID()),request(availability,randomUUID())]);
+  const results=await Promise.allSettled(inputs.map(input=>createBookingAtomically(new PostgresTransactionAdapter(pool),new PostgresBookingRepository(),input)));
+  expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+  expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(0);
+ });
+ it("replays concurrent identical requests once and rejects changed payloads",async()=>{
+  const availability=randomUUID();await pool.query("INSERT INTO availability(id,service_id,remaining,capacity,starts_at) VALUES($1,$2,2,2,now()+interval '2 days')",[availability,service]);
+  const input=await request(availability,randomUUID()),run=(value= input)=>createBookingAtomically(new PostgresTransactionAdapter(pool),new PostgresBookingRepository(),value);
+  const results=await Promise.all([run(),run()]);expect(results[0].bookingId).toBe(results[1].bookingId);
+  expect(results.filter(r=>r.replayed)).toHaveLength(1);
+  expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(1);
+  await expect(run({...input,requestHash:"changed"})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+ });
+ it("does not activate a verified partner without a ready service in an open area",async()=>{
+  const p=randomUUID();await pool.query("INSERT INTO partners(id,name,verification_status,business_status) VALUES($1,'Not ready','APPROVED','DRAFT')",[p]);
+  await expect(new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>activatePartnerCommercially(tx,{partnerId:p,actorUserId:user}))).rejects.toMatchObject({code:"PARTNER_NO_BOOKABLE_SERVICE"});
+  expect((await pool.query("SELECT business_status FROM partners WHERE id=$1",[p])).rows[0].business_status).toBe("DRAFT");
+  expect((await pool.query("SELECT count(*)::int n FROM partner_commercial_terms WHERE partner_id=$1",[p])).rows[0].n).toBe(0);
+ });
+
+ it("starts six calendar months only when verified services are ready in an open area",async()=>{
+  const p=randomUUID(),s=randomUUID();
+  await pool.query("INSERT INTO partners(id,name,verification_status,business_status) VALUES($1,'Ready Partner','APPROVED','DRAFT')",[p]);
+  await pool.query("INSERT INTO services(id,partner_id,category,status,booking_mode,service_kind) VALUES($1,$2,'HOTEL','ACTIVE','CAPACITY','STAY')",[s,p]);
+  await pool.query("INSERT INTO service_area_assignments(service_id,area_code) SELECT $1,code FROM service_areas WHERE commercial_status='BOOKING_ENABLED' LIMIT 1",[s]);
+  await pool.query("INSERT INTO availability(id,service_id,starts_at,remaining,capacity) VALUES($1,$2,now()+interval '1 day',1,1)",[randomUUID(),s]);
+  await pool.query("INSERT INTO service_price_offers(id,service_id,currency,unit_amount,status,effective_from) VALUES($1,$2,'LAK',100,'ACTIVE',now()-interval '1 day')",[randomUUID(),s]);
+  const adapter=new PostgresTransactionAdapter(pool);
+  await adapter.run("SERIALIZABLE",tx=>activatePartnerCommercially(tx,{partnerId:p,actorUserId:user}));
+  expect((await pool.query("SELECT free_ends_at=free_started_at+interval '6 months' AS six_months FROM partner_commercial_terms WHERE partner_id=$1",[p])).rows[0].six_months).toBe(true);
+  await expect(adapter.run("SERIALIZABLE",tx=>activatePartnerCommercially(tx,{partnerId:p,actorUserId:user}))).rejects.toMatchObject({code:"PARTNER_ALREADY_ACTIVE"});
+ });
+ it.each(["CHECKED_IN","CONFIRMED"])("does not restore used/check-in or no-show capacity from %s",async status=>{
+  const {id,availability}=await heldBooking();await pool.query("UPDATE bookings SET status=$2 WHERE id=$1",[id,status]);await pool.query("UPDATE inventory_holds SET status='CONSUMED' WHERE booking_id=$1",[id]);
+  await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:status==="CONFIRMED"?"MARK_NO_SHOW":"CANCEL"}));
+  expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(2);
+ });
+
 });
