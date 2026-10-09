@@ -51,7 +51,7 @@ export async function mutateBookingLifecycle(tx:TransactionContext,input:{bookin
   if(r.rowCount!==1)throw new BookingLifecycleMutationError("COMMISSION_LEDGER_STATE_CHANGED");
  }
  await tx.execute(
-  "INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'BOOKING_STATUS_CHANGED','booking',$2,jsonb_build_object('fromStatus',$3,'toStatus',$4,'event',$5,'trialAction',$6,'inventoryHoldAction',$7,'commissionAction',$8))",
+  "INSERT INTO audit_logs(id,actor_user_id,action,target_type,target_id,metadata) VALUES(gen_random_uuid(),$1,'BOOKING_STATUS_CHANGED','booking',$2,jsonb_build_object('fromStatus',$3::text,'toStatus',$4::text,'event',$5::text,'trialAction',$6::text,'inventoryHoldAction',$7::text,'commissionAction',$8::text))",
   [input.actorUserId??null,input.bookingId,booking.status,next,input.event,action,holdAction,commissionAction]
  );
  return {status:next};

@@ -5,6 +5,10 @@ import {PostgresTransactionAdapter} from "../../src/lib/infrastructure/postgres-
 import type {TransactionContext} from "../../src/lib/infrastructure/transaction";
 import {mutateBookingLifecycle} from "../../src/lib/booking/postgres-lifecycle";
 import {grantCompletionReward} from "../../src/lib/rewards/postgres-completion-reward";
+import {transitionBookingPayment} from "../../src/lib/payment/postgres-status-transition";
+import {decidePartnerVerification} from "../../src/lib/partner/postgres-verification-decision";
+import {approvePartnerApplication} from "../../src/lib/partner/postgres-application-review";
+import {settleCommissionEntry} from "../../src/lib/commission/postgres-settlement";
 
 // Only an explicitly enabled disposable CI database may run these tests.
 const enabled=process.env.RUN_DB_MUTATION_TESTS==="1";
@@ -68,5 +72,27 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
   expect(results.filter(r=>r.granted)).toHaveLength(1);
   expect(results.filter(r=>!r.granted)).toHaveLength(1);
   expect((await pool.query("SELECT count(*)::int AS n,sum(points)::text AS balance FROM points_ledger WHERE booking_id=$1 AND user_id=$2",[id,user])).rows[0]).toEqual({n:1,balance:"10"});
+ });
+ it("commits payment status and typed audit metadata together",async()=>{
+  const id=await booking();
+  await transitionBookingPayment(pool,{bookingId:id,actorUserId:user,to:"PAID",reason:"Confirmed direct payment"});
+  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='PAYMENT_STATUS_CHANGED'",[id])).rows[0].metadata).toEqual({fromStatus:"UNPAID",toStatus:"PAID",reason:"Confirmed direct payment"});
+ });
+ it("commits final verification and audit metadata together",async()=>{
+  await decidePartnerVerification(pool,{partnerId:partner,actorUserId:user,decision:"REJECTED"});
+  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='PARTNER_VERIFICATION_DECIDED'",[partner])).rows[0].metadata).toEqual({fromStatus:"DRAFT",toStatus:"REJECTED"});
+ });
+ it("approves an application with an auditable new partner identity",async()=>{
+  const id=randomUUID();
+  await pool.query("INSERT INTO partner_applications(id,applicant_user_id,category,business_name,contact_name,email,phone,operating_area) VALUES($1,$2,'transport','Regression Co','Tester','test@example.invalid','000','Vang Vieng')",[id,user]);
+  const result=await approvePartnerApplication(pool,{applicationId:id,actorUserId:user});
+  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='PARTNER_APPLICATION_APPROVED'",[id])).rows[0].metadata).toEqual({partnerId:result.partnerId});
+ });
+ it("settles an earned commission with its unchanged audit identifiers",async()=>{
+  const id=await booking("COMPLETED"),ledger=randomUUID();
+  await pool.query("INSERT INTO partner_booking_commercial_paths(booking_id,partner_id,path) VALUES($1,$2,'COMMISSIONABLE')",[id,partner]);
+  await pool.query("INSERT INTO partner_commission_ledger(id,partner_id,booking_id,status,currency,commission_basis_amount,commission_rate_bps,commission_amount,partner_amount,commission_rule_version) VALUES($1,$2,$3,'EARNED','LAK',100,1000,10,90,'regression-v1')",[ledger,partner,id]);
+  await settleCommissionEntry(pool,{ledgerId:ledger,actorUserId:user,settlementReference:"regression-reference"});
+  expect((await pool.query("SELECT metadata FROM audit_logs WHERE target_id=$1 AND action='COMMISSION_SETTLED'",[ledger])).rows[0].metadata).toEqual({partnerId:partner,bookingId:id,settlementReference:"regression-reference"});
  });
 });
