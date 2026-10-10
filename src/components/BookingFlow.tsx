@@ -1,12 +1,12 @@
 "use client";
 import {useRef,useState} from "react";
 import type {AvailabilityQuote,IntercityDeparture} from "@/lib/api/contracts";
-import {BookingAttempt,connectedBackend} from "@/lib/client/connected-backend";
+import {BookingAttempt,ClientError,connectedBackend} from "@/lib/client/connected-backend";
 export function BookingFlow({serviceId,locale="en"}:{serviceId?:string;locale?:string}){
  const [date,setDate]=useState("");const [quantity,setQuantity]=useState(1);const [rows,setRows]=useState<IntercityDeparture[]>([]);const [selected,setSelected]=useState<IntercityDeparture>();const [stop,setStop]=useState("");
  const [name,setName]=useState("");const [email,setEmail]=useState("");const [quote,setQuote]=useState<AvailabilityQuote>();const [receipt,setReceipt]=useState<string>();const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
  const lock=useRef(false);const attempt=useRef<BookingAttempt|null>(null);
- async function run(work:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setNotice("");try{await work()}catch{setNotice("Unable to confirm this request. Sign in if required, then retry. No success is assumed.")}finally{lock.current=false;setBusy(false)}}
+ async function run(work:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setNotice("");try{await work()}catch(error){if(error instanceof ClientError&&error.code==="PRICE_QUOTE_EXPIRED"){attempt.current=null;setQuote(undefined);setNotice("The quote expired before a booking was created. Check availability and price again.")}else setNotice("Unable to confirm this request. Sign in if required, then retry. No success is assumed.")}finally{lock.current=false;setBusy(false)}}
  async function search(){await run(async()=>{setRows([]);setSelected(undefined);setQuote(undefined);setStop("");const data=await connectedBackend.departures(date,locale);const available=data.filter(d=>!serviceId||d.serviceId===serviceId);setRows(available);if(!available.length)setNotice("No bookable departures are available for this date.")})}
  async function price(){await run(async()=>{if(!selected||!name.trim()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||selected.vehicleType==="BUS"&&!stop)throw new Error("SELECTION_REQUIRED");
   const q=await connectedBackend.quote({serviceId:selected.serviceId,availabilityId:selected.availabilityId,date,quantity});setQuote(q);
