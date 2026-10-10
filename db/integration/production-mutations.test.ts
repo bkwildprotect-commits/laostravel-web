@@ -1,3 +1,4 @@
+import {submitPartnerApplication} from "../../src/lib/partner/postgres-application";
 import {randomUUID} from "node:crypto";
 import {Pool, type PoolClient} from "pg";
 import {describe,it,expect,beforeAll,afterAll} from "vitest";
@@ -200,6 +201,34 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
   const {id,availability}=await heldBooking();await pool.query("UPDATE bookings SET status=$2 WHERE id=$1",[id,status]);await pool.query("UPDATE inventory_holds SET status='CONSUMED' WHERE booking_id=$1",[id]);
   await new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>mutateBookingLifecycle(tx,{bookingId:id,event:status==="CONFIRMED"?"MARK_NO_SHOW":"CANCEL"}));
   expect((await pool.query("SELECT remaining FROM availability WHERE id=$1",[availability])).rows[0].remaining).toBe(2);
+ });
+
+ it("concurrent application retry creates one intake and one audit without approving Partner",async()=>{
+  const key=randomUUID(),input={category:"hotel",businessName:"Real Intake",contactName:"Owner",email:"owner@example.invalid",phone:"020123",area:"Champasak",idempotencyKey:key};
+  const results=await Promise.all([submitPartnerApplication(pool,user,input),submitPartnerApplication(pool,user,input)]);
+  expect(results[0]).toEqual(results[1]);
+  const id=results[0].applicationId;
+  expect((await pool.query("SELECT status,partner_id FROM partner_applications WHERE id=$1",[id])).rows[0]).toEqual({status:"SUBMITTED",partner_id:null});
+  expect(Number((await pool.query("SELECT count(*) FROM audit_logs WHERE action='PARTNER_APPLICATION_SUBMITTED' AND target_id=$1",[id])).rows[0].count)).toBe(1);
+  await expect(submitPartnerApplication(pool,user,{...input,businessName:"Changed"})).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+  expect(Number((await pool.query("SELECT count(*) FROM partner_application_idempotency WHERE user_id=$1 AND idempotency_key=$2",[user,key])).rows[0].count)).toBe(1);
+ });
+ it.each(["unverified","inactive","closed-area","past"])("does not issue quotes for %s targets",async mode=>{
+  const {availability}=await heldBooking();
+  const area=(await pool.query("SELECT area_code FROM service_area_assignments WHERE service_id=$1 LIMIT 1",[service])).rows[0].area_code;
+  try{
+   if(mode==="unverified")await pool.query("UPDATE partners SET verification_status='PENDING' WHERE id=$1",[partner]);
+   if(mode==="inactive")await pool.query("UPDATE services SET status='DRAFT' WHERE id=$1",[service]);
+   if(mode==="closed-area")await pool.query("DELETE FROM service_area_assignments WHERE service_id=$1",[service]);
+   if(mode==="past")await pool.query("UPDATE availability SET starts_at=now()-interval '1 minute' WHERE id=$1",[availability]);
+   const date=(await pool.query("SELECT starts_at::date::text AS date FROM availability WHERE id=$1",[availability])).rows[0].date;
+   await expect(createAuthoritativeQuote(pool,{serviceId:service,availabilityId:availability,date,quantity:1})).rejects.toMatchObject({code:"AVAILABILITY_NOT_FOUND"});
+   expect(Number((await pool.query("SELECT count(*) FROM price_quotes WHERE availability_id=$1",[availability])).rows[0].count)).toBe(0);
+  }finally{
+   await pool.query("UPDATE partners SET verification_status='APPROVED' WHERE id=$1",[partner]);
+   await pool.query("UPDATE services SET status='ACTIVE' WHERE id=$1",[service]);
+   await pool.query("INSERT INTO service_area_assignments(service_id,area_code) VALUES($1,$2) ON CONFLICT DO NOTHING",[service,area]);
+  }
  });
 
 });

@@ -1,8 +1,9 @@
 "use client";
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {PartnerBookingList} from "./partner/PartnerBookingList";
-const modules=["Overview","Bookings","Services","Availability","Pricing","Photos","Reviews","Business Profile","Staff","Settings","Support"];
+import {connectedBackend,type WebSession} from "@/lib/client/connected-backend";
 export function PartnerDashboard(){
- const [partnerId,setPartnerId]=useState("");
- return <div className="partnerDashboard"><aside><h2>Partner Dashboard</h2><nav>{modules.map(m=><button key={m}>{m}</button>)}</nav></aside><section><p className="eyebrow">PARTNER WORKSPACE</p><h1>Bookings</h1><div className="statusCard"><strong>Shared booking data</strong><p>Bookings are loaded from the same LaosTravel backend used by Traveller booking.</p><label>Partner ID <input value={partnerId} onChange={e=>setPartnerId(e.target.value)} placeholder="Partner ID"/></label></div>{partnerId.trim()?<PartnerBookingList partnerId={partnerId.trim()}/>:<div className="emptyState"><strong>Select partner</strong><p>Enter your Partner ID to load authorized bookings.</p></div>}</section></div>
+ const [partners,setPartners]=useState<WebSession["partners"]>([]);const [partnerId,setPartnerId]=useState("");const [error,setError]=useState("");
+ useEffect(()=>{let active=true;connectedBackend.session().then(s=>{if(active)setPartners(s.partners.filter(p=>p.canManage))}).catch(()=>{if(active)setError("Sign in with an approved active Partner account to load bookings.")});return()=>{active=false}},[]);
+ return <div className="partnerDashboard"><section><p className="eyebrow">PARTNER WORKSPACE</p><h1>Bookings</h1>{error&&<p role="alert">{error}</p>}<label>Your approved Partners<select value={partnerId} onChange={e=>setPartnerId(e.target.value)}><option value="">Select Partner</option>{partners.map(p=><option value={p.partnerId} key={p.partnerId}>{p.name}</option>)}</select></label>{partnerId?<PartnerBookingList key={partnerId} partnerId={partnerId}/>:<p>No Partner selected. Pending applications do not grant access.</p>}</section></div>
 }

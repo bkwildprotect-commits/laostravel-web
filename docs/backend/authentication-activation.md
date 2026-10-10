@@ -26,3 +26,16 @@ The server accepts a Bearer token and verifies it through OIDC discovery/JWKS us
 
 ## Deliberate non-goals
 Do not add a temporary email/password database, client-side admin flag, shared admin password, query-string role, or public environment-variable bypass. Those would weaken the security boundary already established by the backend.
+
+## Connected Website (2026-10-10.v2)
+The existing email/password forms now call Supabase Auth using only explicitly configured public client values: `NEXT_PUBLIC_SUPABASE_URL` (HTTPS origin) and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (publishable or legacy anon; secret/service-role rejected). No value is committed or configured by this change. Passwords are sent only to that provider, never to LaosTravel APIs. Tokens remain in memory; reload requires sign-in. Sign-out invalidates pending local responses; refresh is serialized.
+
+Provider sign-in alone grants no account or Partner authority. The signed Bearer token must pass existing backend signature/issuer/audience/expiry checks and ACTIVE `auth_identities`/`users` mapping through `/api/v1/auth/session`. No auto-provisioning, role grants or Partner approval is added. The existing social flow still requires Authorization Code + PKCE and owner/provider callback configuration; it is not enabled by this password connection.
+
+Provider prerequisites: selected project must match backend AUTH_ISSUER_URL/AUTH_AUDIENCE/JWKS, enable the approved email/password method, and configure email confirmation/recovery delivery and approved Site URL/callback. The recovery form requests provider email only; password-reset completion/callback handling remains a blocker. Register confirmation does not grant internal LaosTravel access. Do not claim full signup/recovery/device acceptance without these real checks.
+
+Partner intake uses the authenticated internal owner. New connected Website submissions carry a frozen idempotency key; migration 0034 stores user/key/hash and the original intake reference atomically with an audit entry. Identical retries replay; altered payloads conflict. Legacy callers without keys remain supported but do not have this replay guarantee. Intake receipt status SUBMITTED is the original receipt, not a current verification decision. Evidence upload/private storage, reviewer approval and commercial activation remain separate gates.
+
+Booking connects only the existing intercity catalog, selected availability/verified boarding stop, authoritative quote and booking transaction. Unsupported catalogs remain unavailable. Contract v2 is checked before mutations; financial values are displayed from the quote, never submitted as payment/commission truth. Retry freezes the quote/body/key and internal owner; no implicit retry creates a fresh quote. Benefits redemption remains unavailable.
+
+Migration 0034 enables RLS with no public policies on intake retry records. The trusted backend database role must have the required existing owner/BYPASSRLS access; never grant public/anon access to these records. Validate migration and role permissions in the authorized deployment environment before deployment.

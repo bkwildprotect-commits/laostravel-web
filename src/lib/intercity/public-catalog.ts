@@ -81,7 +81,7 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
   FROM services s
   JOIN partners p ON p.id=s.partner_id AND p.verification_status='APPROVED'
   JOIN partner_commercial_terms terms ON terms.partner_id=p.id
-    AND (terms.model='COMMISSION' OR (terms.model='LAUNCH_FREE' AND now()<terms.free_ends_at))
+    AND ((terms.model='COMMISSION' AND length(btrim(terms.accepted_terms_version))>0) OR (terms.model='LAUNCH_FREE' AND now()<terms.free_ends_at))
   JOIN service_capability_details sc ON sc.service_id=s.id
     AND sc.publication_status='PUBLISHED' AND sc.vehicle_type IN ('VIP_VAN','BUS')
   JOIN service_areas origin ON origin.code=sc.origin_area_code
