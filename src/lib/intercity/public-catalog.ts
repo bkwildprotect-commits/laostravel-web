@@ -79,7 +79,7 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
          sc.smart_pickup_max_detour_m,sc.pickup_requires_operator_approval,
          stop_list.designated_stops
   FROM services s
-  JOIN partners p ON p.id=s.partner_id AND p.verification_status='APPROVED'
+  JOIN partners p ON p.id=s.partner_id AND p.verification_status='APPROVED' AND p.business_status='ACTIVE'
   JOIN partner_commercial_terms terms ON terms.partner_id=p.id
     AND ((terms.model='COMMISSION' AND length(btrim(terms.accepted_terms_version))>0) OR (terms.model='LAUNCH_FREE' AND now()<terms.free_ends_at))
   JOIN service_capability_details sc ON sc.service_id=s.id
@@ -113,11 +113,15 @@ export async function listPublicIntercityDepartures(pool:Pool,input:IntercityCat
     FROM intercity_designated_stops stop
     WHERE stop.service_id=s.id AND stop.active=true AND stop.verification_status='VERIFIED'
   ) stop_list ON true
-  WHERE s.service_kind='INTERCITY_TRANSPORT'
+  WHERE s.service_kind='INTERCITY_TRANSPORT' AND s.status='ACTIVE'
     AND ($2::text IS NULL OR origin.code=$2)
     AND ($3::text IS NULL OR destination.code=$3)
     AND ($4::text IS NULL OR sc.vehicle_type=$4)
-    AND (sc.vehicle_type<>'BUS' OR jsonb_array_length(stop_list.designated_stops)>0)
+    AND (sc.vehicle_type<>'BUS' OR EXISTS(
+      SELECT 1 FROM intercity_designated_stops boarding
+      WHERE boarding.service_id=s.id AND boarding.active=true AND boarding.verification_status='VERIFIED'
+        AND boarding.stop_role IN ('BOARDING','BOTH')
+    ))
   ORDER BY a.starts_at,s.id
   LIMIT $6
  `,[input.date,input.originAreaCode??null,input.destinationAreaCode??null,input.vehicleType??null,input.locale??"en",input.limit??50]);

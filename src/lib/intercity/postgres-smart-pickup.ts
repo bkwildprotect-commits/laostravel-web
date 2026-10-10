@@ -6,7 +6,7 @@ export class SmartPickupError extends Error{
 function validCoordinate(lat:number,lng:number){return Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lng)&&lng>=-180&&lng<=180}
 
 export async function createSmartPickupRequest(pool:Pool,input:{userId:string;bookingId:string;latitude:number;longitude:number;label?:string}){
- if(!input.bookingId||!validCoordinate(input.latitude,input.longitude)||input.label&&input.label.trim().length>240)throw new SmartPickupError("INVALID_INPUT");
+ if(!input.bookingId||!validCoordinate(input.latitude,input.longitude)||input.label&&input.label.trim().length>160)throw new SmartPickupError("INVALID_INPUT");
  const client=await pool.connect();
  try{
   await client.query("BEGIN");
@@ -33,6 +33,7 @@ export async function createSmartPickupRequest(pool:Pool,input:{userId:string;bo
 
 export async function decideSmartPickupRequest(pool:Pool,input:{userId:string;partnerId:string;requestId:string;decision:"ACCEPTED"|"DECLINED";routeDetourMeters?:number;routeDetourSeconds?:number}){
  if(!input.partnerId||!input.requestId||!["ACCEPTED","DECLINED"].includes(input.decision))throw new SmartPickupError("INVALID_INPUT");
+ if(input.decision==="DECLINED"&&(input.routeDetourMeters!==undefined||input.routeDetourSeconds!==undefined))throw new SmartPickupError("INVALID_INPUT");
  if(input.routeDetourMeters!==undefined&&(!Number.isSafeInteger(input.routeDetourMeters)||input.routeDetourMeters<0))throw new SmartPickupError("INVALID_INPUT");
  if(input.routeDetourSeconds!==undefined&&(!Number.isSafeInteger(input.routeDetourSeconds)||input.routeDetourSeconds<0))throw new SmartPickupError("INVALID_INPUT");
  const client=await pool.connect();

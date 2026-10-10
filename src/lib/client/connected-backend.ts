@@ -1,5 +1,5 @@
 import type {AvailabilityQuote, CreateBookingRequest, IntercityDeparture} from "../api/contracts";
-import {sharedContractVersion, launchPolicy, bookingStatuses, paymentStatuses} from "../shared/cross-platform-contract";
+import {sharedContractVersion, launchPolicy, authority, bookingStatuses, paymentStatuses} from "../shared/cross-platform-contract";
 
 export class ClientError extends Error { constructor(public code:string){super(code)} }
 type Fetcher = typeof fetch;
@@ -12,7 +12,7 @@ function money(value:unknown):string {const s=text(value);if(!/^\d+$/.test(s))th
 export function validateSharedContract(value:unknown){
  const v=record(value), p=record(v.launchPolicy), a=record(v.authority);
  if(v.version!==sharedContractVersion || JSON.stringify(v.bookingStatuses)!==JSON.stringify(bookingStatuses) || JSON.stringify(v.paymentStatuses)!==JSON.stringify(paymentStatuses)
-  || Object.entries(launchPolicy).some(([k,x])=>p[k]!==x) || a.bookingLifecycle!=="SERVER" || a.paymentTruth!=="SERVER" || a.commercialTerms!=="SERVER")throw new ClientError("CONTRACT_MISMATCH");
+  || Object.entries(launchPolicy).some(([k,x])=>p[k]!==x) || Object.entries(authority).some(([k,x])=>a[k]!==x))throw new ClientError("CONTRACT_MISMATCH");
 }
 export function validateQuote(value:unknown,selection:{serviceId:string;availabilityId:string;date:string;quantity:number}):AvailabilityQuote {
  const v=record(value);
@@ -73,6 +73,7 @@ export class ConnectedBackend {
   const headers:Record<string,string>={Accept:"application/json","Content-Type":"application/json"};
   const generation=this.generation;
   if(authenticated)headers.Authorization="Bearer "+await this.access();
+  if(authenticated&&generation!==this.generation)throw new ClientError("AUTH_REQUIRED");
   try{const v=record(await this.response(path,{method:method??(body===undefined?"GET":"POST"),headers,...(body===undefined?{}:{body:JSON.stringify(body)})}));
    if(authenticated&&generation!==this.generation)throw new ClientError("AUTH_REQUIRED");
    if(v.error!==null||v.data===null||v.data===undefined)throw new ClientError("INVALID_RESPONSE");return v.data;

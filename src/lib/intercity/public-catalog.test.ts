@@ -31,7 +31,9 @@ describe("public intercity catalog",()=>{
   expect(sql).toContain("commercial_area.commercial_status='BOOKING_ENABLED'");
   expect(sql).toContain("a.remaining IS NOT NULL");
   expect(sql).toContain("stop.verification_status='VERIFIED'");
-  expect(sql).toContain("sc.vehicle_type<>'BUS' OR jsonb_array_length");
+  expect(sql).toContain("p.business_status='ACTIVE'");
+  expect(sql).toContain("s.status='ACTIVE'");
+  expect(sql).toContain("boarding.stop_role IN ('BOARDING','BOTH')");
  });
  it("never exposes Smart Pickup for a Bus",async()=>{
   const pool={query:vi.fn().mockResolvedValue({rows:[{
