@@ -16,9 +16,9 @@ describe("PartnerBookingList lifecycle controls",()=>{
   expect(source).not.toContain('event:"EXPIRE",label:');
  });
  it("sends lifecycle changes only through the protected status endpoint",()=>{
-  expect(source).toContain('/status`,{method:"PATCH"');
-  expect(source).toContain('credentials:"same-origin"');
-  expect(source).toContain('body:JSON.stringify({event})');
+  expect(source).toContain('/status`,{event},true,"PATCH"');
+  expect(source).toContain("connectedBackend.request");
+  expect(source).toContain("connectedBackend.sharedContract");
  });
  it("disables the active booking action while mutation is in flight",()=>{
   expect(source).toContain("disabled={updating===b.bookingId}");

@@ -6,7 +6,8 @@ describe("PartnerBookingList safety states",()=>{
  const source=readFileSync(resolve(process.cwd(),"src/components/partner/PartnerBookingList.tsx"),"utf8");
  it("uses the authenticated same-origin partner booking endpoint",()=>{
   expect(source).toContain("/api/v1/partners/");
-  expect(source).toContain('credentials:"same-origin"');
+  expect(source).toContain("connectedBackend.request");
+  expect(source).toContain("undefined,true");
  });
  it("renders loading, error and empty states",()=>{
   expect(source).toContain("กำลังโหลดรายการจอง");

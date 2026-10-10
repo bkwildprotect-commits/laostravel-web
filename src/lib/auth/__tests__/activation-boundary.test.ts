@@ -1,8 +1,9 @@
 import {describe,expect,it} from "vitest";import {readFileSync} from "node:fs";import {resolve} from "node:path";
 describe("protected UI activation boundary",()=>{
- it("keeps the placeholder auth form explicit until provider integration exists",()=>{
+ it("connects auth through the verified session adapter without token persistence exists",()=>{
   const source=readFileSync(resolve(process.cwd(),"src/components/AuthForm.tsx"),"utf8");
-  expect(source).toContain("Authentication provider is not connected yet");
+  expect(source).toContain("connectedBackend.authenticate");
+  expect(source).toContain("CONFIGURATION_REQUIRED");
   expect(source).not.toContain("localStorage.setItem");
  });
  it("documents production OIDC and GPS activation prerequisites",()=>{
