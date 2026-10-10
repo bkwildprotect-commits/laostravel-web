@@ -14,6 +14,13 @@ import {createBookingAtomically} from "../../src/lib/booking/orchestrator";
 import {PostgresBookingRepository} from "../../src/lib/booking/postgres-repository";
 import {activatePartnerCommercially} from "../../src/lib/partner/postgres-commercial-activation";
 import {settleCommissionEntry} from "../../src/lib/commission/postgres-settlement";
+import {listPublicIntercityDepartures} from "../../src/lib/intercity/public-catalog";
+import {mutatePartnerBookingLifecycle} from "../../src/lib/partner/postgres-booking-lifecycle";
+import {PostgresAuthIdentityStore} from "../../src/lib/auth/postgres-auth-identity-store";
+import {OidcAuthenticationAdapter} from "../../src/lib/auth/oidc-authentication";
+import {createVerifiedReview} from "../../src/lib/reviews/postgres-verified-review";
+import {sendBookingMessage,storeMessageTranslation} from "../../src/lib/chat/postgres-booking-chat";
+import {grantSosLocationConsent,revokeSosLocationConsent,shareSosLocation} from "../../src/lib/emergency/postgres-sos-location-consent";
 
 // Only an explicitly enabled disposable CI database may run these tests.
 const enabled=process.env.RUN_DB_MUTATION_TESTS==="1";
@@ -231,4 +238,110 @@ describe.skipIf(!enabled)("production mutations on disposable PostgreSQL",()=>{
   }
  });
 
+ it("real catalog to quote to booking to authorized cancellation restores capacity once",async()=>{
+  const p=randomUUID(),s=randomUUID(),slot=randomUUID(),operator=randomUUID();
+  const area=(await pool.query("SELECT code FROM service_areas WHERE commercial_status='BOOKING_ENABLED' LIMIT 1")).rows[0].code;
+  await pool.query("INSERT INTO users(id,email) VALUES($1,$2)",[operator,`${operator}@example.invalid`]);
+  await pool.query("INSERT INTO partners(id,name,verification_status,business_status) VALUES($1,'Synthetic E2E Operator','APPROVED','ACTIVE')",[p]);
+  await pool.query("INSERT INTO partner_members(partner_id,user_id,role) VALUES($1,$2,'OWNER')",[p,operator]);
+  await pool.query("INSERT INTO partner_commercial_terms(partner_id,model,free_started_at,free_ends_at) VALUES($1,'LAUNCH_FREE',now(),now()+interval '6 months')",[p]);
+  await pool.query("INSERT INTO services(id,partner_id,category,status,booking_mode,service_kind) VALUES($1,$2,'TRANSPORT','ACTIVE','CAPACITY','INTERCITY_TRANSPORT')",[s,p]);
+  await pool.query("INSERT INTO service_area_assignments(service_id,area_code) VALUES($1,$2)",[s,area]);
+  await pool.query("INSERT INTO service_capability_details(service_id,origin_area_code,destination_area_code,vehicle_type,publication_status) VALUES($1,$2,$2,'VIP_VAN','PUBLISHED')",[s,area]);
+  await pool.query("INSERT INTO service_price_offers(id,service_id,currency,unit_amount,status,effective_from) VALUES($1,$2,'LAK',100,'ACTIVE',now()-interval '1 day')",[randomUUID(),s]);
+  await pool.query("INSERT INTO availability(id,service_id,starts_at,remaining,capacity) VALUES($1,$2,now()+interval '3 days',2,2)",[slot,s]);
+  const date=(await pool.query("SELECT starts_at::date::text AS date FROM availability WHERE id=$1",[slot])).rows[0].date;
+  const catalog=async()=> (await listPublicIntercityDepartures(pool,{date})).filter(d=>d.serviceId===s);
+  expect(await catalog()).toHaveLength(1);
+  for(const target of ["partner","service"]){
+   if(target==="partner")await pool.query("UPDATE partners SET business_status='PAUSED' WHERE id=$1",[p]);
+   else await pool.query("UPDATE services SET status='DRAFT' WHERE id=$1",[s]);
+   expect(await catalog()).toHaveLength(0);
+   await pool.query("UPDATE partners SET business_status='ACTIVE' WHERE id=$1",[p]);
+   await pool.query("UPDATE services SET status='ACTIVE' WHERE id=$1",[s]);
+  }
+  await pool.query("UPDATE service_capability_details SET vehicle_type='BUS' WHERE service_id=$1",[s]);
+  await pool.query("INSERT INTO intercity_designated_stops(id,service_id,area_code,name_lo,name_en,stop_role,stop_order,latitude,longitude,verification_status,created_by_user_id,verified_by_user_id,verified_at) VALUES($1,$2,$3,'Synthetic','Synthetic','DROPOFF',0,0,0,'VERIFIED',$4,$4,now())",[randomUUID(),s,area,user]);
+  expect(await catalog()).toHaveLength(0);
+  await pool.query("UPDATE service_capability_details SET vehicle_type='VIP_VAN' WHERE service_id=$1",[s]);
+  const quote=await createAuthoritativeQuote(pool,{serviceId:s,availabilityId:slot,date,quantity:1});
+  const key=randomUUID(),input={userId:user,idempotencyKey:key,requestHash:key,bookingRequest:{serviceId:s,date,quantity:1,availabilityToken:quote.availabilityToken,priceQuoteId:quote.priceQuoteId,idempotencyKey:key,traveller:{name:"Synthetic Traveller",email:"e2e@example.invalid"}}};
+  const adapter=new PostgresTransactionAdapter(pool),repo=new PostgresBookingRepository();
+  const created=await createBookingAtomically(adapter,repo,input);
+  expect((await pool.query("SELECT status,payment_status FROM bookings WHERE id=$1",[created.bookingId])).rows[0]).toEqual({status:"REQUESTED",payment_status:"UNPAID"});
+  expect((await catalog())[0].remainingSeats).toBe(1);
+  expect(await createBookingAtomically(adapter,repo,input)).toEqual({...created,replayed:true});
+  await expect(mutatePartnerBookingLifecycle(pool,{userId:user,partnerId:p,bookingId:created.bookingId,event:"CANCEL"})).rejects.toThrow("PARTNER_BOOKING_MUTATION_ACCESS_DENIED");
+  await mutatePartnerBookingLifecycle(pool,{userId:operator,partnerId:p,bookingId:created.bookingId,event:"CANCEL"});
+  await expect(mutatePartnerBookingLifecycle(pool,{userId:operator,partnerId:p,bookingId:created.bookingId,event:"CANCEL"})).rejects.toThrow();
+  expect((await catalog())[0].remainingSeats).toBe(2);
+  expect((await pool.query("SELECT payment_status FROM bookings WHERE id=$1",[created.bookingId])).rows[0].payment_status).toBe("UNPAID");
+ });
+ it("requires a real ACTIVE internal identity even after provider verification",async()=>{
+  const id=randomUUID(),subject=randomUUID(),issuer="https://provider.example.invalid";
+  await pool.query("INSERT INTO users(id,email) VALUES($1,$2)",[id,`${id}@example.invalid`]);
+  const adapter=new OidcAuthenticationAdapter({verify:async()=>({sub:subject,iss:issuer,aud:"test",exp:Math.floor(Date.now()/1000)+60})},new PostgresAuthIdentityStore(pool,issuer),{AUTH_ISSUER_URL:issuer,AUTH_AUDIENCE:"test"});
+  const request=new Request("https://test.invalid",{headers:{authorization:"Bearer synthetic-verified-token"}});
+  await expect(adapter.authenticate(request)).rejects.toMatchObject({code:"AUTH_INVALID"});
+  await pool.query("INSERT INTO auth_identities(issuer,subject,user_id) VALUES($1,$2,$3)",[issuer,subject,id]);
+  await expect(adapter.authenticate(request)).resolves.toMatchObject({userId:id});
+  await pool.query("UPDATE users SET status='SUSPENDED' WHERE id=$1",[id]);
+  await expect(adapter.authenticate(request)).rejects.toMatchObject({code:"AUTH_INVALID"});
+ });
+ it.each(["missing","pending","expired"])("cannot verify or activate Partner with %s required evidence",async mode=>{
+  const p=randomUUID();await pool.query("INSERT INTO partners(id,name,verification_status,business_status) VALUES($1,'Evidence Gate','PENDING','DRAFT')",[p]);
+  if(mode!=="missing")await pool.query(`INSERT INTO partner_verification_documents(id,partner_id,document_type,evidence_key,method,status,reviewer_user_id,reviewed_at,expires_at)
+   SELECT gen_random_uuid(),$1,document_type,'synthetic-private-key','LAOSTRAVEL_REVIEW',$2,$3,now(),CURRENT_DATE-1 FROM partner_verification_requirements WHERE required AND active`,[p,mode==="pending"?"PENDING":"APPROVED",user]);
+  await expect(decidePartnerVerification(pool,{partnerId:p,actorUserId:user,decision:"APPROVED"})).rejects.toMatchObject({missing:expect.arrayContaining(["BUSINESS_LICENSE","OWNER_OR_MANAGER_ID","SETTLEMENT_BANK_ACCOUNT"])});
+  await expect(new PostgresTransactionAdapter(pool).run("SERIALIZABLE",tx=>activatePartnerCommercially(tx,{partnerId:p,actorUserId:user}))).rejects.toMatchObject({code:"PARTNER_NOT_APPROVED"});
+  expect((await pool.query("SELECT verification_status,business_status FROM partners WHERE id=$1",[p])).rows[0]).toEqual({verification_status:"PENDING",business_status:"DRAFT"});
+  expect(Number((await pool.query("SELECT count(*) FROM partner_commercial_terms WHERE partner_id=$1",[p])).rows[0].count)).toBe(0);
+ });
+ it("only an owner of a completed booking can write one verified review under concurrency",async()=>{
+  const id=await booking("COMPLETED");
+  await pool.query("INSERT INTO booking_items(id,booking_id,service_id,quantity) VALUES($1,$2,$3,1)",[randomUUID(),id,service]);
+  const adapter=new PostgresTransactionAdapter(pool);
+  await expect(adapter.run("SERIALIZABLE",tx=>createVerifiedReview(tx,{bookingId:id,userId:randomUUID(),rating:5}))).rejects.toMatchObject({code:"BOOKING_NOT_ELIGIBLE"});
+  const results=await Promise.allSettled([1,2].map(()=>adapter.run("SERIALIZABLE",tx=>createVerifiedReview(tx,{bookingId:id,userId:user,rating:5,body:"Synthetic test"}))));
+  expect(results.filter(r=>r.status==="fulfilled")).toHaveLength(1);
+  const rejected=results.find(r=>r.status==="rejected");expect(rejected?.status==="rejected"?rejected.reason.code:null).toBe("REVIEW_ALREADY_EXISTS");
+  expect(Number((await pool.query("SELECT count(*) FROM reviews WHERE booking_id=$1",[id])).rows[0].count)).toBe(1);
+ });
+ it("requested booking cannot create a verified review or earn completion coins",async()=>{
+  const id=await booking();const adapter=new PostgresTransactionAdapter(pool);
+  await pool.query("INSERT INTO booking_items(id,booking_id,service_id,quantity) VALUES($1,$2,$3,1)",[randomUUID(),id,service]);
+  await expect(adapter.run("SERIALIZABLE",tx=>createVerifiedReview(tx,{bookingId:id,userId:user,rating:5}))).rejects.toMatchObject({code:"BOOKING_NOT_ELIGIBLE"});
+  await expect(adapter.run("SERIALIZABLE",tx=>grantCompletionReward(tx,{bookingId:id,userId:user,points:10}))).rejects.toMatchObject({code:"BOOKING_NOT_ELIGIBLE"});
+  expect(Number((await pool.query("SELECT count(*) FROM points_ledger WHERE booking_id=$1",[id])).rows[0].count)).toBe(0);
+ });
+ it("booking chat isolates strangers and preserves original text after translation",async()=>{
+  const id=await booking(),member=randomUUID(),outsider=randomUUID();
+  await pool.query("INSERT INTO users(id,email) VALUES($1,$2),($3,$4)",[member,`${member}@example.invalid`,outsider,`${outsider}@example.invalid`]);
+  await pool.query("INSERT INTO partner_members(partner_id,user_id,role) VALUES($1,$2,'OWNER')",[partner,member]);
+  await pool.query("INSERT INTO booking_items(id,booking_id,service_id,quantity) VALUES($1,$2,$3,1)",[randomUUID(),id,service]);
+  await expect(sendBookingMessage(pool,{bookingId:id,userId:outsider,locale:"en",text:"Synthetic outsider"})).rejects.toThrow("BOOKING_CONVERSATION_ACCESS_DENIED");
+  const message=await sendBookingMessage(pool,{bookingId:id,userId:user,locale:"en",text:"Original synthetic message"});
+  await sendBookingMessage(pool,{bookingId:id,userId:member,locale:"lo",text:"Synthetic reply"});
+  await storeMessageTranslation(pool,{messageId:message.messageId,locale:"th",text:"Synthetic translation",provider:"test-only"});
+  expect((await pool.query("SELECT original_text FROM booking_messages WHERE id=$1",[message.messageId])).rows[0].original_text).toBe("Original synthetic message");
+  expect(Number((await pool.query("SELECT count(*) FROM booking_messages WHERE booking_id=$1",[id])).rows[0].count)).toBe(2);
+ });
+ it("synthetic SOS coordinates require booking ownership and unrevoked consent",async()=>{
+  const id=await booking(),input={bookingId:id,travellerUserId:user,latitude:0,longitude:0};
+  await expect(grantSosLocationConsent(pool,{bookingId:id,travellerUserId:randomUUID()})).rejects.toMatchObject({code:"BOOKING_NOT_OWNED"});
+  await expect(shareSosLocation(pool,input)).rejects.toMatchObject({code:"ACTIVE_CONSENT_REQUIRED"});
+  await grantSosLocationConsent(pool,{bookingId:id,travellerUserId:user});
+  await shareSosLocation(pool,input);
+  await revokeSosLocationConsent(pool,{bookingId:id,travellerUserId:user});
+  await expect(shareSosLocation(pool,input)).rejects.toMatchObject({code:"ACTIVE_CONSENT_REQUIRED"});
+  expect(Number((await pool.query("SELECT count(*) FROM sos_location_shares WHERE booking_id=$1",[id])).rows[0].count)).toBe(1);
+ });
+ it("bootstrap enforces Smart Pickup decision evidence and rejects synthetic pending detours",async()=>{
+  const id=await booking();
+  await expect(pool.query("INSERT INTO intercity_pickup_requests(booking_id,pickup_latitude,pickup_longitude,route_detour_m) VALUES($1,0,0,100)",[id])).rejects.toMatchObject({code:"23514",constraint:"smart_pickup_decision_integrity"});
+  await expect(pool.query("INSERT INTO intercity_pickup_requests(booking_id,pickup_latitude,pickup_longitude,operator_status) VALUES($1,0,0,'ACCEPTED')",[id])).rejects.toMatchObject({code:"23514",constraint:"smart_pickup_decision_integrity"});
+  await pool.query("INSERT INTO intercity_pickup_requests(booking_id,pickup_latitude,pickup_longitude) VALUES($1,0,0)",[id]);
+  await expect(pool.query("UPDATE intercity_pickup_requests SET pickup_label=' ' WHERE booking_id=$1",[id])).rejects.toMatchObject({code:"23514",constraint:"smart_pickup_label_length"});
+  expect((await pool.query("SELECT operator_status,route_detour_m FROM intercity_pickup_requests WHERE booking_id=$1",[id])).rows[0]).toEqual({operator_status:"PENDING",route_detour_m:null});
+ });
 });

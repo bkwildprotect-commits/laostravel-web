@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from "vitest";
 import {BookingAttempt,ConnectedBackend,publicAuthConfiguration,validateQuote,validateSharedContract} from "./connected-backend";
-import {getSharedContract} from "../shared/cross-platform-contract";
+import {getSharedContract,authority} from "../shared/cross-platform-contract";
 const config={url:"https://auth.example",key:"sb_publishable_test"};
 const profile={userId:"mapped-user",email:"u@example.com",displayName:"User",partners:[],applicationStatus:null};
 const tokens={access_token:"verified-token",refresh_token:"refresh",expires_in:3600,token_type:"bearer"};
@@ -28,6 +28,26 @@ describe("connected Website security and contract",()=>{
  });
  it("no credentials means no provider or protected request",async()=>{const send=vi.fn();const api=new ConnectedBackend({url:"",key:""},send);await expect(api.authenticate("login",{email:"u@example.com",password:"password123"})).rejects.toThrow("CONFIGURATION_REQUIRED");await expect(api.apply({})).rejects.toThrow();expect(send).toHaveBeenCalledTimes(1)});
  it.each(["commissionQualification","activationRequires","refundedPaymentTerminal","inventoryRestoration"])("rejects policy drift in %s before mutation",key=>{const v=structuredClone(getSharedContract());(v.launchPolicy as Record<string,unknown>)[key]=null;expect(()=>validateSharedContract(v)).toThrow("CONTRACT_MISMATCH")});
+ it.each(Object.keys(authority))("rejects authority drift in %s",key=>{const v=structuredClone(getSharedContract());(v.authority as Record<string,unknown>)[key]="CLIENT";expect(()=>validateSharedContract(v)).toThrow("CONTRACT_MISMATCH")});
+ it("logout between token acquisition and dispatch prevents a protected request",async()=>{
+  const send=vi.fn<typeof fetch>(async url=>String(url).includes("auth.example")?new Response(JSON.stringify(tokens)):String(url).endsWith("shared-contract")?envelope(getSharedContract()):envelope(profile));
+  const api=new ConnectedBackend(config,send);await api.authenticate("login",{email:"u@example.com",password:"password123"});
+  const before=send.mock.calls.length;const pending=api.request("/api/v1/bookings",{idempotencyKey:"same-key"},true);api.clear();
+  await expect(pending).rejects.toThrow("AUTH_REQUIRED");expect(send).toHaveBeenCalledTimes(before);
+ });
+ it("concurrent expired access refreshes once and sends the refreshed token",async()=>{
+  let now=Date.now();const clock=vi.spyOn(Date,"now").mockImplementation(()=>now);let refreshes=0;
+  try{
+   const send=vi.fn<typeof fetch>(async(url,init)=>{
+    if(String(url).includes("grant_type=refresh_token")){refreshes++;expect(JSON.parse(init!.body as string)).toEqual({refresh_token:"refresh"});return new Response(JSON.stringify({...tokens,access_token:"renewed"}));}
+    if(String(url).includes("auth.example"))return new Response(JSON.stringify({...tokens,expires_in:60}));
+    if(String(url).endsWith("shared-contract"))return envelope(getSharedContract());
+    expect((init!.headers as Record<string,string>).Authorization).toBe(refreshes===0?"Bearer verified-token":"Bearer renewed");return envelope(profile);
+   });
+   const api=new ConnectedBackend(config,send);await api.authenticate("login",{email:"u@example.com",password:"password123"});
+   now+=120000;await Promise.all([api.session(),api.session()]);expect(refreshes).toBe(1);
+  }finally{clock.mockRestore()}
+ });
  it("rejects stale version and unsafe price selection",()=>{expect(()=>validateSharedContract({...getSharedContract(),version:"old"})).toThrow();expect(()=>validateQuote({...quote,availabilityId:"other"},selection)).toThrow();expect(()=>validateQuote({...quote,customerTotal:"1.2"},selection)).toThrow();expect(()=>validateQuote({...quote,expiresAt:"2000-01-01"},selection)).toThrow("QUOTE_EXPIRED")});
  it("contract mismatch never sends a booking or application mutation",async()=>{const send=vi.fn<typeof fetch>(async()=>envelope({...getSharedContract(),version:"old"}));const api=new ConnectedBackend(config,send);await expect(api.book({} as never)).rejects.toThrow("CONTRACT_MISMATCH");expect(send).toHaveBeenCalledTimes(1);expect(String(send.mock.calls[0][0])).toContain("shared-contract")});
  it("late protected response after sign-out is rejected",async()=>{
