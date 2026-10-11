@@ -20,6 +20,7 @@ jobs:
           --health-cmd "pg_isready -U laostravel -d laostravel_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      RUN_DB_BOOTSTRAP_TESTS: "1"
       DATABASE_URL: postgresql://laostravel:test@localhost:5432/laostravel_test
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +31,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Bootstrap fresh database
         run: node scripts/run-db-bootstrap.mjs
+      - name: Verify Staging RLS and client isolation on disposable database
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/009_staging_isolation.sql
       - name: Exercise production lifecycle and reward mutations
         run: RUN_DB_MUTATION_TESTS=1 npx vitest run db/integration/production-mutations.test.ts
       - name: Run SQL integration checks
