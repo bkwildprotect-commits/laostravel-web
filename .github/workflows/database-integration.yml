@@ -33,6 +33,13 @@ jobs:
         run: node scripts/run-db-bootstrap.mjs
       - name: Verify Staging RLS and client isolation on disposable database
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/integration/009_staging_isolation.sql
+      - name: Test provider runner atomically on separate disposable PostgreSQL
+        env:
+          RUN_STAGING_RUNNER_TESTS: "1"
+          STAGING_RUNNER_TEST_URL: postgresql://laostravel:test@localhost:5432/laostravel_staging_runner_test
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE laostravel_staging_runner_test'
+          node --test scripts/tests/staging-bootstrap-db.check.mjs
       - name: Exercise production lifecycle and reward mutations
         run: RUN_DB_MUTATION_TESTS=1 npx vitest run db/integration/production-mutations.test.ts
       - name: Run SQL integration checks

@@ -42,6 +42,17 @@ describe("production readiness",()=>{
    ...env,AUTH_JWKS_URL:"http://issuer.example/jwks.json",
   })).toEqual(["AUTH_JWKS_URL"]);
  });
+ it("accepts verified TLS database parameters without opening approval gates",()=>{
+  const tls={...env,DATABASE_URL:"postgresql://user:synthetic@db.example/postgres?sslmode=verify-full&sslrootcert=/run/certs/staging.crt",BOOKING_API_APPROVED:"false",PARTNER_EVIDENCE_UPLOAD_APPROVED:"false"};
+  expect(getCoreRuntimeConfigurationIssues(tls)).toEqual([]);
+  expect(getProductionReadiness(tls)).toEqual({ready:false,missing:["BOOKING_API_APPROVED","PARTNER_EVIDENCE_UPLOAD_APPROVED"]});
+ });
+ it.each(["sslmode=disable","sslmode=require","ssl=false","sslmode=verify-full&sslmode=disable"])("rejects insecure/ambiguous database SSL parameters: %s",query=>{
+  expect(getCoreRuntimeConfigurationIssues({...env,DATABASE_URL:`postgresql://synthetic@db.example/postgres?${query}`})).toContain("DATABASE_URL");
+ });
+ it("still rejects query parameters on auth URLs",()=>{
+  expect(getCoreRuntimeConfigurationIssues({...env,AUTH_ISSUER_URL:"https://issuer.example?redirect=bad"})).toContain("AUTH_ISSUER_URL");
+ });
  it("reports absent provider configuration",()=>{
   expect(getProductionReadiness({})).toMatchObject({ready:false});
  });

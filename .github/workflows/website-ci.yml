@@ -20,6 +20,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Run domain tests
         run: npm test
+      - name: Test Staging runner and read-only smoke safeguards
+        run: npm run test:staging
       - name: Lint source
         run: npm run lint -- --max-warnings=0
       - name: TypeScript check
