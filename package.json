@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:db:concurrency": "node scripts/run-db-concurrency.mjs"
+    "test:db:concurrency": "node scripts/run-db-concurrency.mjs",
+    "test:staging": "node --test scripts/tests/*.check.mjs",
+    "staging:plan": "node scripts/staging-bootstrap.mjs --plan"
   },
   "dependencies": {
     "next": "^15.5.0",

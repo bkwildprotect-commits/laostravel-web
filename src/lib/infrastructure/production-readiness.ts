@@ -1,18 +1,19 @@
 export type ProductionReadiness={ready:true}|{ready:false;missing:string[]};
 
-function validUrl(raw:string|undefined,protocols:readonly string[],options:{allowCredentials?:boolean}={}){
+function validUrl(raw:string|undefined,protocols:readonly string[],options:{allowCredentials?:boolean;allowSearch?:boolean}={}){
  if(!raw?.trim())return false;
  try{
   const url=new URL(raw.trim());
-  return protocols.includes(url.protocol)&&Boolean(url.hostname)&&
+  const dbQuerySafe=!url.search||(options.allowSearch===true && url.searchParams.get("sslmode")==="verify-full" && [...url.searchParams.keys()].every(k=>["sslmode","sslrootcert"].includes(k)&&url.searchParams.getAll(k).length===1));
+  return dbQuerySafe&&protocols.includes(url.protocol)&&Boolean(url.hostname)&&
    (options.allowCredentials===true||(!url.username&&!url.password))&&
-   !url.search&&!url.hash;
+   (options.allowSearch===true||!url.search)&&!url.hash;
  }catch{return false}
 }
 
 export function getCoreRuntimeConfigurationIssues(env:Record<string,string|undefined>=process.env){
  const issues:string[]=[];
- if(!validUrl(env.DATABASE_URL,["postgres:","postgresql:"],{allowCredentials:true}))issues.push("DATABASE_URL");
+ if(!validUrl(env.DATABASE_URL,["postgres:","postgresql:"],{allowCredentials:true,allowSearch:true}))issues.push("DATABASE_URL");
  const hold=Number(env.BOOKING_HOLD_MINUTES);
  if(!Number.isSafeInteger(hold)||hold<1||hold>1440)issues.push("BOOKING_HOLD_MINUTES");
  const issuer=env.AUTH_ISSUER_URL?.trim();
