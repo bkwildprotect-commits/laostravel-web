@@ -1,6 +1,6 @@
 # Cross-client implementation matrix
 
-Reference Mobile baseline: `laos-travel-app@2e35aabe3d553f19f163deed1a91dc581a907c9e` (merged PR #29/#31); commercial alignment: Mobile PR #32. Reference Website contract: `2026-10-05.v1` + `SHARED_PRODUCT_CONTRACT.md`. Local model parity and live API integration are separate release gates.
+Reference Mobile baseline: `laos-travel-app@d1f9f5d07def26aa8a11947ff76ce945c349ad82` (merged PR #49); normative contract: `2026-10-10.v2` (`SHARED_PRODUCT_CONTRACT.md`, owner-approved rules dated 2026-10-10). Local model parity and live API integration are separate release gates.
 
 | Domain | Website/backend | Mobile current state | Required convergence |
 |---|---|---|---|
