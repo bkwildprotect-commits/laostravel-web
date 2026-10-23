@@ -13,5 +13,11 @@ Rules:
 
 0002 and 0004 explicitly inspect PostgreSQL catalog constraints before adding named constraints. 0004 also backfills commercial_path before enforcing NOT NULL.
 
+## Bootstrap paths
 
-Current disposable integration bootstrap applies and verifies ordered migrations through `0029_partner_application_intake`, including Partner final verification requirements, booking-scoped chat/translation storage, explicit SOS location consent, and authenticated Partner application intake.
+The repository has two distinct bootstrap paths; their migration cutoffs are not interchangeable.
+
+- **Disposable integration bootstrap:** The integration verification described by the existing test setup applies and verifies ordered migrations through `0029_partner_application_intake`, including Partner final verification requirements, booking-scoped chat/translation storage, explicit SOS location consent, and authenticated Partner application intake. This cutoff describes that integration test path.
+- **Provider Staging bootstrap plan:** `scripts/staging-bootstrap.mjs --plan` builds an offline, approval-bound plan from `docs/backend/database-schema.sql`, every SQL migration in `db/migrations/` (currently 36 files through the `0034` series, including both `0025_*` files and both `0027_*` files), and `db/staging/client-isolation.sql`. The current plan therefore contains 38 units. The script verifies the manifest and SHA-256 checksums and validates the Staging target/TLS before any database connection in check/apply modes.
+
+The provider Staging runner defaults to an offline plan. Do not run `--apply` or apply real migrations without the separate, exact-plan owner approval required by the script. This documentation clarification does not authorize database changes.
