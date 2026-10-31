@@ -1,13 +1,22 @@
 # PostgreSQL integration tests
 
-These SQL checks are for a disposable PostgreSQL database only. They are not executed against production.
+These SQL checks run only against a disposable PostgreSQL database created by CI. They are not executed against Supabase Provider Staging or Production.
 
-Current checks:
-- 001 verifies a booking allocated to TRIAL_FREE cannot also create a commission ledger row.
-- 002 verifies occupied Partner trial ordinals 1-5 are unique and a duplicate occupied ordinal is rejected.
+## Current v2 mutation coverage
 
-Concurrency scenarios still require a real multi-connection harness: two clients racing for the same commercial path, multiple bookings competing for the fifth free ordinal, and inventory decrement under contention. Unit tests cannot prove PostgreSQL locking behavior.
+`production-mutations.test.ts` exercises current v2 PostgreSQL mutations, including six-calendar-month Partner activation, eligibility prerequisites, quote-to-booking, concurrent inventory protection, idempotent replay, payment/commission qualification, refund/dispute behavior, settlement concurrency, rewards and audit mutations.
 
-Prerequisite: apply the reconciled base schema and migrations 0001-0004 to the disposable database first. The scripts use gen_random_uuid(), available in supported modern PostgreSQL releases.
+The Database Integration workflow also runs the repository bootstrap manifest, RLS/client-isolation assertions and the multi-connection concurrency harness. A passing disposable CI run is not proof of live Provider Staging, Auth/SMS, private Storage or real-device connectivity.
 
-Do not mark the database integration gate passed until these scripts and the multi-connection concurrency suite have executed successfully on the approved PostgreSQL environment.
+## Legacy `TRIAL_FREE` compatibility SQL
+
+- `001_commercial_path.sql`: rejects simultaneous legacy `TRIAL_FREE` and commission paths.
+- `002_trial_ordinals.sql`: preserves uniqueness of historical five-booking trial ordinals.
+- `007_booking_trial_e2e.sql`: legacy trial/inventory lifecycle regression.
+- `008_booking_trial_rollback.sql`: legacy trial rollback plus separate commission rollback regression.
+
+These files preserve compatibility for historical `TRIAL_FREE` records. They do not define current Partner eligibility, do not allocate new v2 bookings, and do not supersede the six-calendar-month `LAUNCH_FREE` policy in Shared Product Contract v2.
+
+## Safety boundary
+
+The local bootstrap runner accepts only the empty disposable `laostravel_test` database with `RUN_DB_BOOTSTRAP_TESTS=1`. Never point it at Supabase Provider Staging or Production.
