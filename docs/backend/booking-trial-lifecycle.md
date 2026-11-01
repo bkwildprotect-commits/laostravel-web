@@ -1,33 +1,23 @@
-# Booking + Partner Trial/Commission Lifecycle
+# Legacy `TRIAL_FREE` booking lifecycle — compatibility only
 
-## Booking transitions
-- PENDING -> CONFIRMED -> COMPLETED
-- PENDING -> CANCELLED
-- PENDING -> EXPIRED
-- CONFIRMED -> CANCELLED
-- CONFIRMED -> NO_SHOW
+This document describes the historical five-free-booking ordinal model. It is retained only to explain and safely process legacy `partner_trial_ledger` rows. It is not the current LaosTravel commercial policy.
 
-Terminal states cannot be silently reopened by this domain layer.
+## Current v2 rule for new bookings
 
-## Trial lifecycle
-When a booking has a RESERVED free-trial ordinal:
-- COMPLETED => CONSUME the ordinal.
-- CANCELLED, EXPIRED, or NO_SHOW before completion => RELEASE the ordinal.
-- Other transitions => no trial change.
+New bookings use `partner_commercial_terms`, not trial ordinals:
 
-This implements the owner rule that a customer cancellation before the booking qualifies must not consume one of the Partner's five free bookings.
+- An eligible Partner receives an individual six-calendar-month `LAUNCH_FREE` period beginning only at audited commercial activation after APPROVED verification and a ready, bookable service in an open area.
+- Booking count does not consume or shorten that period.
+- Expiry does not silently activate commission. Separately accepted `COMMISSION` terms and an active effective versioned rule are required.
+- Commission qualification requires `COMPLETED + PAID` and accepted terms evidence.
 
-## Commission lifecycle
-For a COMMISSIONABLE booking:
-- PENDING ledger + COMPLETED booking => EARN commission.
-- PENDING ledger + CANCELLED/EXPIRED booking => VOID commission.
-- Settlement and reversal are separate accounting operations and must be audited.
+## Historical compatibility behavior
 
-## Production transaction requirement
-Booking status, trial ledger, commission ledger, inventory and audit event must be mutated atomically in the selected PostgreSQL backend. This TypeScript layer defines allowed decisions only; it does not claim that a production database transaction exists yet.
+For an existing legacy booking that already has a RESERVED `partner_trial_ledger` row:
 
-## Locked NO_SHOW rule
-NO_SHOW does **not** consume one of the Partner’s five free bookings. If a free-trial booking becomes NO_SHOW while its ordinal is RESERVED, the ordinal is RELEASED and becomes available again.
+- COMPLETED consumes the reserved legacy ordinal.
+- CANCELLED, EXPIRED or NO_SHOW releases the reserved legacy ordinal.
+- A consumed legacy ordinal is not silently reopened.
+- A legacy booking cannot simultaneously have a `TRIAL_FREE` path and a commission ledger.
 
-## Policy still to lock
-The exact business event that qualifies as COMPLETED for each service category should be finalized before production launch.
+This compatibility path must not create new `TRIAL_FREE` bookings or determine current Partner launch-free eligibility. New v2 commercial decisions remain server-authoritative and transactional.
