@@ -27,19 +27,29 @@ CI acceptance gate: latest PR head must pass every applicable workflow/check bef
 
 Owner decisions remain separate: internal identity provisioning process; evidence access/retention; finer cancellation/resale cutoffs; commercial terms after the free period; settlement/reconciliation of reversed settled commission. No payment gateway, rate or legal policy changed.
 
+
+## Verification snapshot — 2026-11-17
+
+- Website Main is `50203507be26919f83564c666dca343b924debc9`. Post-merge Website CI run `43872048817` and Database Integration run `43872048925` both completed successfully on 2026-11-16. The Vercel commit status is also `success`.
+- The Database Integration run bootstrapped and mutated disposable PostgreSQL only. It is not evidence of Supabase Provider Staging acceptance.
+- Mobile Main remains `ce805eb2cde5b153fe89b049f59aa1d3a9599ade`. The latest observed Mobile run is Build Android APK `42483052841` from 2026-11-08; no Mobile Staging Readiness run appears in the latest 100 Actions runs inspected. That build has no downloadable artifact.
+- The Mobile read-only Staging workflow is present in Main and requires an owner-triggered manual run with owner-approved, non-production origins. It performs unauthenticated GET checks only and does not test live authentication, Storage permissions, booking, or payment.
+- Current Branch Protection endpoints were not readable through the connected GitHub integration (403). Website repository rulesets returned an empty list; Mobile rulesets were unavailable under the current plan. Do not treat the 2026-11-06 protection snapshot as a current verification.
+
+
 ## Limited Pilot — Vang Vieng (Readiness Only; Not Authorized)
 
 This section is an operational gate checklist, not approval to expose the service area, enable Booking API, upload Partner evidence, deploy Production, or accept real customers. Vang Vieng remains the only intended initial commercial pilot area; its live booking gate stays closed until separate owner approval.
 
-| Gate | Required evidence before pilot consideration | Current status (2026-11-06) |
+| Gate | Required evidence before pilot consideration | Current status (verification snapshot 2026-11-17) |
 |---|---|---|
-| Supabase Provider Staging | Correct project ref; verified TLS; reviewed exposed schemas, roles/ACLs, RLS, Storage privacy and Network Restrictions using read-only evidence. | BLOCKED — no current Dashboard/database evidence. |
-| Website / Backend Staging | Owner-approved Staging origin; v2 metadata and closed launch gates verified over HTTPS; no Production origin probed. | BLOCKED — no approved Staging origin available. |
-| Mobile Staging | Dedicated read-only Staging preflight and physical Android smoke test; no Production release preflight substituted for Staging. | BLOCKED — Mobile Staging preflight PR is pending; no approved origin/device evidence. |
+| Supabase Provider Staging | Correct project ref; verified TLS; reviewed exposed schemas, roles/ACLs, RLS, Storage privacy and Network Restrictions using read-only evidence. | BLOCKED — no current Dashboard/database evidence; unauthenticated health URL was not accessible from the verification client, which does not establish a Project outage. |
+| Website / Backend Staging | Owner-approved Staging origin; v2 metadata and closed launch gates verified over HTTPS; no Production origin probed. | BLOCKED — post-merge Main CI and Vercel checks passed on 2026-11-16; no owner-approved Staging origin or Provider HTTPS acceptance is available. |
+| Mobile Staging | Dedicated read-only Staging preflight and physical Android smoke test; no Production release preflight substituted for Staging. | BLOCKED — read-only preflight workflow is present in Mobile Main; no owner-approved Staging/Release origins, successful live probe, or physical Android smoke-test evidence. |
 | Partner verification and evidence | Real provider adapter, private evidence access, reviewer retrieval, retention and deletion behavior tested; approval remains server-side and auditable. | BLOCKED — no connected upload API/provider adapter. |
 | Booking and inventory | Synthetic-account E2E for request, confirmation, check-in, service and completion; cancellation/expiry, idempotency, concurrency and one-time eligible inventory restoration verified against Provider Staging. | BLOCKED — current evidence is Disposable PostgreSQL only. |
 | Payment and commission | Payment remains separate from booking status; PAY_AT_PARTNER is direct Partner payment; LAUNCH_FREE is 0%; post-expiry commission requires separately accepted terms and an active versioned rule; refund/dispute ledger behavior verified. | BLOCKED — automated regression coverage only; no live Provider E2E. |
-| Governance and audit | Required CI checks enforced before merge; material booking, payment, verification, commission, settlement and area changes auditable. | BLOCKED — main branches currently report protection=false and required-check enforcement=off. |
+| Governance and audit | Required CI checks enforced before merge; material booking, payment, verification, commission, settlement and area changes auditable. | UNVERIFIED — the 2026-11-06 snapshot reported protection=false and required-check enforcement=off; current branch-protection reads returned 403, Website rulesets returned an empty list, and Mobile rulesets are unavailable under the current plan. Owner Settings review is required. |
 | Owner acceptance | Written, scope-specific approval for the pilot cohort, area activation, operational support and rollback. | NOT GRANTED. |
 
 ### Pilot sequence
