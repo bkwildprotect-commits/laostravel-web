@@ -19,7 +19,7 @@ Contract remains `2026-10-10.v2`; the four owner-approved commercial/payment/inv
 | GPS / SOS / Chat | Backend automated coverage; live client blocked | Synthetic coordinates/messages only; booking ownership, original message preservation and revoked consent tested. Connected Mobile keeps prototype contacts/location/chat unavailable. No emergency calls. |
 | Smart Pickup schema | Disposable bootstrap coverage | The current fresh-database bootstrap consumes the complete `scripts/bootstrap-manifest.json`, including `0027_smart_pickup_decision_integrity.sql`, and asserts the decision/label constraints plus the migration-history row. The separate provider-runner test applies the full 36-migration plan to a disposable PostgreSQL database. This is CI evidence only; it does not apply anything to Supabase Provider Staging or enable Smart Pickup UI/route behavior. |
 | Shared Contract | Automated regression coverage | Both connected clients and Mobile preflight reject all v2 policy/authority drift before quote/booking. |
-| Signing / binary release | Not Tested | Inspect workflow conditions only; APK/AAB/signing/uploads skipped on PR/main events. Do not read or change signing secrets or keys. |
+| Signing / binary release | Not Tested | Mobile Main build `42483052841` passed source/tests only; release preflight, APK build, signing and upload were skipped, with zero artifacts. Manual APK release uses Production-backend preflight and signing secrets; the APK upload step is hard-disabled. The separate Staging workflow performs GET-only readiness checks and does not build an APK. Do not read or change signing secrets or keys. |
 | Live browser/device/provider E2E | Not Tested | Requires an approved staging provider/database/storage and synthetic test accounts. Unit mocks and disposable PostgreSQL are not proof of live acceptance. |
 | Production migrations / deployment | Not Tested / prohibited in this round | No production database, real customer data, migration or release used. |
 
@@ -28,23 +28,25 @@ CI acceptance gate: latest PR head must pass every applicable workflow/check bef
 Owner decisions remain separate: internal identity provisioning process; evidence access/retention; finer cancellation/resale cutoffs; commercial terms after the free period; settlement/reconciliation of reversed settled commission. No payment gateway, rate or legal policy changed.
 
 
-## Verification snapshot — 2026-11-17
+## Verification snapshot — 2026-11-19
 
-- Website Main is `50203507be26919f83564c666dca343b924debc9`. Post-merge Website CI run `43872048817` and Database Integration run `43872048925` both completed successfully on 2026-11-16. The Vercel commit status is also `success`.
+- Website Main is `408e8c541c5a896e77d58cc8a904c80857990857`. Post-merge Website CI run `43993186854` and Database Integration run `43993186737` both completed successfully on 2026-11-17. The Vercel commit status for this Main commit is `success`.
 - The Database Integration run bootstrapped and mutated disposable PostgreSQL only. It is not evidence of Supabase Provider Staging acceptance.
-- Mobile Main remains `ce805eb2cde5b153fe89b049f59aa1d3a9599ade`. The latest observed Mobile run is Build Android APK `42483052841` from 2026-11-08; no Mobile Staging Readiness run appears in the latest 100 Actions runs inspected. That build has no downloadable artifact.
-- The Mobile read-only Staging workflow is present in Main and requires an owner-triggered manual run with owner-approved, non-production origins. It performs unauthenticated GET checks only and does not test live authentication, Storage permissions, booking, or payment.
-- Current Branch Protection endpoints were not readable through the connected GitHub integration (403). Website repository rulesets returned an empty list; Mobile rulesets were unavailable under the current plan. Do not treat the 2026-11-06 protection snapshot as a current verification.
+- Mobile Main remains `ce805eb2cde5b153fe89b049f59aa1d3a9599ade`. The latest Mobile Actions run is Build Android APK `42483052841` from 2026-11-08. No Mobile Staging Readiness run appears in the latest 100 Actions runs queried on 2026-11-19. The build has zero downloadable artifacts; its release-backend preflight, Release APK build, signing and upload steps were skipped.
+- The separate Mobile read-only Staging workflow is present in Main and requires an owner-triggered manual run with owner-approved, non-production origins. It uses unauthenticated GET checks for Shared Contract v2 metadata, closed launch gates and anonymous-session rejection. It does not test live authentication, Storage permissions, booking or payment.
+- The Mobile release APK path is separate: it requires a manual `build_release_apk=true` dispatch, runs the Production-backend preflight and uses signing secrets. The APK upload step is currently hard-disabled by its workflow condition, so this path does not provide a downloadable APK. It is not a Staging APK path. No signing secrets or keys were read or changed.
+- The Supabase Project Auth Health URL and Dashboard could not be resolved/opened from the verification environment on 2026-11-19. This is an environment access failure and does not establish a Supabase Project outage. No credentials were used and no Supabase settings were changed.
+- Current Branch Protection endpoints were not readable through the connected GitHub integration (403). Website repository rulesets returned an empty list; Mobile rulesets were unavailable under the current GitHub plan. Owner Settings review remains required; do not treat the 2026-11-06 protection snapshot as current verification.
 
 
 ## Limited Pilot — Vang Vieng (Readiness Only; Not Authorized)
 
 This section is an operational gate checklist, not approval to expose the service area, enable Booking API, upload Partner evidence, deploy Production, or accept real customers. Vang Vieng remains the only intended initial commercial pilot area; its live booking gate stays closed until separate owner approval.
 
-| Gate | Required evidence before pilot consideration | Current status (verification snapshot 2026-11-17) |
+| Gate | Required evidence before pilot consideration | Current status (verification snapshot 2026-11-19) |
 |---|---|---|
 | Supabase Provider Staging | Correct project ref; verified TLS; reviewed exposed schemas, roles/ACLs, RLS, Storage privacy and Network Restrictions using read-only evidence. | BLOCKED — no current Dashboard/database evidence; unauthenticated health URL was not accessible from the verification client, which does not establish a Project outage. |
-| Website / Backend Staging | Owner-approved Staging origin; v2 metadata and closed launch gates verified over HTTPS; no Production origin probed. | BLOCKED — post-merge Main CI and Vercel checks passed on 2026-11-16; no owner-approved Staging origin or Provider HTTPS acceptance is available. |
+| Website / Backend Staging | Owner-approved Staging origin; v2 metadata and closed launch gates verified over HTTPS; no Production origin probed. | BLOCKED — post-merge Main CI and Vercel checks passed on 2026-11-17; no owner-approved Staging origin or Provider HTTPS acceptance is available. |
 | Mobile Staging | Dedicated read-only Staging preflight and physical Android smoke test; no Production release preflight substituted for Staging. | BLOCKED — read-only preflight workflow is present in Mobile Main; no owner-approved Staging/Release origins, successful live probe, or physical Android smoke-test evidence. |
 | Partner verification and evidence | Real provider adapter, private evidence access, reviewer retrieval, retention and deletion behavior tested; approval remains server-side and auditable. | BLOCKED — no connected upload API/provider adapter. |
 | Booking and inventory | Synthetic-account E2E for request, confirmation, check-in, service and completion; cancellation/expiry, idempotency, concurrency and one-time eligible inventory restoration verified against Provider Staging. | BLOCKED — current evidence is Disposable PostgreSQL only. |
