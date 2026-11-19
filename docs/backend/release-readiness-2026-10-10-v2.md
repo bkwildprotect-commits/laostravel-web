@@ -30,7 +30,7 @@ Owner decisions remain separate: internal identity provisioning process; evidenc
 
 ## Verification snapshot — 2026-11-19
 
-- Website Main is `408e8c541c5a896e77d58cc8a904c80857990857`. Post-merge Website CI run `43993186854` and Database Integration run `43993186737` both completed successfully on 2026-11-17. The Vercel commit status for this Main commit is `success`.
+- Website Main is `60d797d6354e8cc10c539251718730ab205441e7`, the merge commit for PR #76. PR-head Website CI run `44434113016` and Database Integration run `44434112869` both completed successfully on 2026-11-19 before merge. The Vercel commit status for the merge commit is `success`. The prior Main snapshot `408e8c541c5a896e77d58cc8a904c80857990857` retains its 2026-11-17 CI runs `43993186854` and `43993186737` as historical evidence.
 - The Database Integration run bootstrapped and mutated disposable PostgreSQL only. It is not evidence of Supabase Provider Staging acceptance.
 - Mobile Main remains `ce805eb2cde5b153fe89b049f59aa1d3a9599ade`. The latest Mobile Actions run is Build Android APK `42483052841` from 2026-11-08. No Mobile Staging Readiness run appears in the latest 100 Actions runs queried on 2026-11-19. The build has zero downloadable artifacts; its release-backend preflight, Release APK build, signing and upload steps were skipped.
 - The separate Mobile read-only Staging workflow is present in Main and requires an owner-triggered manual run with owner-approved, non-production origins. It uses unauthenticated GET checks for Shared Contract v2 metadata, closed launch gates and anonymous-session rejection. It does not test live authentication, Storage permissions, booking or payment.
